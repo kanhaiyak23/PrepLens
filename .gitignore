@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.next/
+*.tsbuildinfo
+.DS_Store
+.claude/settings.local.json
+.impeccable/config.local.json
+.taste-skill/
