@@ -1,0 +1,37 @@
+@import "tailwindcss";
+@import "./landing.css";
+
+/* PrepLens landing: a deliberate, single art-directed look (dark cinema + paper), not a themed UI kit. */
+:root {
+  --ink: #050e16;
+  --ink-2: #0b1925;
+  --ink-3: #132636;
+  --line: #223645;
+  --mist: #a9b9c6;
+  --snow: #e8eef3;
+  --paper: #edf0f3;
+  --paper-2: #e2e7ec;
+  --paper-ink: #0d1b26;
+  --paper-ink-2: #3b4b58;
+  --paper-ink-3: #5b6a77;
+  --paper-line: #c9d1d8;
+  --accent: #f2b01e;
+  --on-accent: #0d1b26;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-io: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+html {
+  background: var(--ink);
+  color-scheme: dark;
+  overflow-x: clip;
+}
+body {
+  background: var(--ink);
+  color: var(--snow);
+  font-family: var(--font-body), "Helvetica Neue", Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.55;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+}
