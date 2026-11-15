@@ -1,3 +1,4 @@
+import type { Tone } from "@/components/ui/Badge";
 import type { Campus, DriveType, ExperienceStatus, Outcome, PublicAuthor } from "@preplens/shared";
 
 export const OUTCOME_LABEL: Record<Outcome, string> = { selected: "Selected", rejected: "Rejected", "in-process": "In process", withdrew: "Withdrew" };
@@ -17,3 +18,7 @@ export function authorLabel(a: PublicAuthor): string {
 }
 
 export const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+/** Tones for the Badge component. Adding an outcome or status means adding one entry here (Open/Closed). */
+export const OUTCOME_TONE: Record<Outcome, Tone> = { selected: "success", rejected: "danger", "in-process": "info", withdrew: "neutral" };
+export const STATUS_TONE: Record<ExperienceStatus, Tone> = { pending: "warning", published: "success", rejected: "danger", unpublished: "neutral", removed: "danger" };
