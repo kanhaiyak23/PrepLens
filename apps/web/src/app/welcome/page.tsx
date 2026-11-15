@@ -1,12 +1,6 @@
-import type { Metadata } from "next";
-import { Welcome } from "@/components/auth/Welcome";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Your account · PrepLens" };
-
-export default function WelcomePage() {
-  return (
-    <main id="top" className="auth-page on-dark">
-      <Welcome />
-    </main>
-  );
+/** The profile page used to live here. Old links and bookmarks keep working. */
+export default function Welcome() {
+  redirect("/profile");
 }
