@@ -17,7 +17,7 @@ Anti-goals: not a job board, not a DSA practice site, not a discussion forum (no
 - `apps/web` exists: Next.js 16 (App Router, TypeScript, Tailwind 4). Landing page (`/`, cinematic, sample content marked Sample) plus working pages calling the API: `/signin` (Google via Supabase Auth), `/auth/callback`, `/welcome` (profile), `/archive` (server-rendered, URL filters, keyset paging), `/experience/[id]` (server-rendered; owner/admin fallback fetches with the token), `/submit` (quick or round-by-round, consent sentence), `/me` (my posts and saved), `/admin` (moderation queue). Client auth: `@supabase/ssr` browser client + `proxy.ts` session refresh; every API call sends the access token as a Bearer header. Env: `apps/web/.env.local` (public values only, gitignored). Libraries: gsap, three, motion, @supabase/ssr, @supabase/supabase-js.
 - Monorepo (npm workspaces): root `package.json` with `apps/*` and `packages/*`.
   - `packages/shared` (`@preplens/shared`): Zod schemas, enums, response types, error codes. Built with `tsc` to `dist`; build it before running or testing the API (the root scripts do).
-  - `apps/api` (`@preplens/api`): Express 5 + TypeScript. Folders: `config/`, `domain/` (errors, ports, viewer, context), `infrastructure/` (Supabase adapters, rate limiter, repository factory), `services/`, `controllers/`, `routes/`, `middleware/`, `lib/`, plus `container.ts` (composition root), `app.ts` (no listen), `server.ts`.
+  - `apps/api` (`@preplens/api`): Express 5 in plain JavaScript (ES modules, ADR-27; ports are JSDoc typedefs in `domain/ports.js`). Folders: `config/`, `domain/` (errors, ports, viewer, context), `infrastructure/` (Supabase adapters, rate limiter, repository factory), `services/`, `controllers/`, `routes/`, `middleware/`, `lib/`, plus `container.js` (composition root), `app.js` (no listen), `server.js`.
   - Built so far: health check, request id, error envelope, bearer-token auth (Supabase `auth.getUser`, role read from the DB each request), `requireRole`, `validate`, user-keyed `rateLimit`, cache headers. Routes: `GET /experiences`, `GET /experiences/:id`, `GET /companies`; `POST /experiences` (5/day), `POST /experiences/:id/unpublish|republish`, `PUT|DELETE /experiences/:id/vote|bookmark` (60/min), `POST /experiences/:id/reports` (10/day); `GET|PATCH /me`, `GET /me/experiences|bookmarks|interactions`; admin `GET /admin/experiences?status=` and `POST /admin/experiences/:id/{approve|reject|remove|reinstate}`. Also: `GET /companies/:slug/guide` (AI guide: Gemini adapter, fallback decorator, fingerprint cache, grounding; verified live with `gemini-2.5-flash`; needs GEMINI_API_KEY, otherwise 503) and admin company approve/merge. Also: `PATCH /experiences/:id` (edit or result update; a live post queues for review), `DELETE /me?posts=keep|delete`, admin updates queue, reports queue, post on behalf. All functional requirements are now built.
   - Tests: 94 passing (API) plus repeatable database tests in `supabase/tests/` (see its README) (`vitest` + `supertest`, fakes only, no database). A manual smoke test against the real Supabase project also passed.
   - `apps/api/.env` is local and gitignored. It holds the publishable key; the **service-role key is still a placeholder** and must be pasted from the Supabase dashboard before any feature that uses the rate limiter.
@@ -52,7 +52,7 @@ An earlier PrepLens by another author exists (Express + MongoDB + Vite). It is a
 Monorepo (ASSUMPTION: npm workspaces) with two deployables and one shared package (ADR-21, ADR-24):
 
 - `apps/web`: Next.js App Router, React, TypeScript, Tailwind CSS, Motion, shadcn/ui primitives where useful, Lucide icons. **Presentation only**: no business rules, no service-role key.
-- `apps/api`: **Node.js + Express (TypeScript)**, versioned REST API at `/api/v1`. Owns all business logic, authorisation, rate limiting and the Gemini call. Layers: routes → controllers → services → repositories, with domain and infrastructure folders (layout in `docs/design/07-api-design.md`). Tests with `supertest`.
+- `apps/api`: **Node.js + Express (JavaScript, ADR-27)**, versioned REST API at `/api/v1`. Owns all business logic, authorisation, rate limiting and the Gemini call. Layers: routes → controllers → services → repositories, with domain and infrastructure folders (layout in `docs/design/07-api-design.md`). Tests with `supertest`.
 - `packages/shared`: Zod schemas, enums, DTO types, error codes used by both apps.
 - **Data and identity:** Supabase Postgres, Supabase Auth (Google OAuth), Row Level Security, Storage only if needed.
 - **AI:** Google Gemini, called only from the API.
@@ -159,7 +159,7 @@ Announce which skill you are using, and why, before each major phase. Do not run
 
 ## 13. Build, lint and dev commands
 
-From the repo root: `npm install`; `npm test` (builds shared, runs API tests); `npm run typecheck`; `npm run dev:api` (API on port 4000, needs `apps/api/.env`); `npm run dev:web` (landing page). Web alone: `cd apps/web && npm run dev -- -p 3100`.
+From the repo root: `npm install`; `npm test` (builds shared, runs API tests); `npm run typecheck` (shared package only; the API has no type step); `npm run dev:api` (API on port 4000, needs `apps/api/.env`); `npm run dev:web` (landing page). Web alone: `cd apps/web && npm run dev -- -p 3100`.
 
 ## 14. Implementation sequence (PLANNED)
 

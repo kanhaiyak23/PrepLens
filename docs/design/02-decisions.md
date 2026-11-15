@@ -590,3 +590,13 @@ flowchart TD
   B -- yes --> OK
   B -- no --> NO["rejected by the trigger"]
 ```
+
+## ADR-27 The API is written in JavaScript; the shared contract stays TypeScript
+
+**Problem.** The owner wants the backend in plain JavaScript. The API was first built in TypeScript, and the web app and API share one contract package.
+
+**Decision.** `apps/api` is ES-module JavaScript (Node 22, `.js` files, no build step, `node --watch` for dev). Ports (the interfaces in `domain/ports.js`) become JSDoc `@typedef`s. `packages/shared` stays TypeScript and is built to `dist`, so the web app keeps its types and the API imports the compiled Zod schemas.
+
+**Why.** Dependency Inversion and Interface Segregation do not need a compiler: the ports are still the only thing services know about, now documented as typedefs and enforced by the fake adapters in tests. Runtime validation at every boundary is Zod (shared), so the safety that matters at the edge does not come from static types. One contract package keeps the web and API from drifting (ADR-24).
+
+**Rejected.** (1) Converting `packages/shared` too: the web app would lose types for every API response. (2) Keeping TS with `allowJs`: no benefit over the status quo. Trade-off accepted: renames and signature changes in the API are no longer caught by `tsc`; the 94 tests and the Zod schemas are the safety net.

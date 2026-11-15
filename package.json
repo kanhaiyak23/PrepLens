@@ -7,6 +7,6 @@
     "dev:api": "npm run build:shared && npm run dev -w @preplens/api",
     "dev:web": "npm run dev -w web",
     "test": "npm run build:shared && npm run test -w @preplens/api",
-    "typecheck": "npm run build:shared && npm run typecheck -w @preplens/api"
+    "typecheck": "npm run build:shared"
   }
 }
