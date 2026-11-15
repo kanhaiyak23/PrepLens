@@ -1,12 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DRIVE_TYPES, OUTCOMES, type CompanySummary, type MeResponse, type SubmissionDto } from "@preplens/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { api, ApiError } from "@/lib/api";
 import { DRIVE_LABEL, OUTCOME_LABEL } from "@/lib/format";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+import { Notice } from "@/components/ui/Notice";
+import { Segmented } from "@/components/ui/Segmented";
+import { Tabs } from "@/components/ui/Tabs";
 import { RoundsEditor, emptyRound, type R } from "./RoundsEditor";
 
 const THIS_YEAR = new Date().getFullYear();
@@ -69,73 +73,80 @@ export function SubmitForm() {
 
   if (done) {
     return (
-      <div className="empty-state">
-        <h2>Thank you. It is waiting for review.</h2>
-        <p>An admin will look at it before it goes public. You can follow its status, or withdraw it, from My posts.</p>
-        <div className="xbtns"><Link className="btn btn-primary" href="/me">My posts</Link><Link className="btn btn-ghost" href="/archive">Back to the archive</Link></div>
+      <div className="bg-surface-container-low rounded-2xl p-10 text-center space-y-3">
+        <div className="w-14 h-14 mx-auto rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center"><Icon name="check_circle" className="!text-3xl" /></div>
+        <h2 className="text-xl font-bold">Thank you. It is waiting for review.</h2>
+        <p className="text-sm text-on-surface-variant max-w-md mx-auto">An admin will look at it before it goes public. You can follow its status, or withdraw it, from My posts.</p>
+        <div className="flex justify-center gap-3 pt-2"><ButtonLink href="/me">My posts</ButtonLink><ButtonLink href="/archive" variant="secondary">Back to experiences</ButtonLink></div>
       </div>
     );
   }
-  if (!me) return <p className="empty">{error ?? "Checking your account…"}</p>;
+  if (!me) return <p className="text-on-surface-variant">{error ?? "Checking your account…"}</p>;
   if (!me.profileComplete) {
     return (
-      <div className="empty-state">
-        <h2>One thing first.</h2>
-        <p>Add your graduation batch and branch so your post can be labelled correctly. Anonymous posts show the batch only.</p>
-        <Link className="btn btn-primary" href="/welcome">Complete your profile</Link>
+      <div className="space-y-4">
+        <Notice title="Your graduation year or branch is missing.">Add them so your post can be labelled correctly. Anonymous posts show the batch only.</Notice>
+        <ButtonLink href="/profile">Complete your profile <Icon name="arrow_forward" className="!text-base" /></ButtonLink>
       </div>
     );
   }
 
   const err = (k: string) => fields[k] && <span className="field-err">{fields[k]}</span>;
+  const card = "bg-surface-container-lowest border border-surface-variant rounded-2xl p-5 sm:p-7 space-y-5";
 
   return (
-    <form onSubmit={submit} className="sform">
-      <div className="seg" role="tablist" aria-label="How do you want to write it?">
-        <button type="button" role="tab" aria-selected={mode === "quick"} onClick={() => setMode("quick")}>Quick note</button>
-        <button type="button" role="tab" aria-selected={mode === "detailed"} onClick={() => setMode("detailed")}>Round by round</button>
-        <span className="seg-thumb" style={{ transform: `translateX(${mode === "quick" ? 0 : 100}%)` }} aria-hidden="true" />
-      </div>
+    <form onSubmit={submit} className="space-y-8">
+      <Tabs label="How do you want to write it?" active={mode} onChange={setMode} items={[{ key: "quick", label: "Quick note" }, { key: "detailed", label: "Round by round" }]} />
 
-      <div className="sgrid">
-        <label><span className="mono">Company</span>
-          <input id="company" required list="companies" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Start typing" autoComplete="off" />
-          <datalist id="companies">{suggest.map((c) => <option key={c.slug} value={c.name} />)}</datalist>{err("company")}
-          <small>Can&apos;t find it? Type the name. A new company waits for an admin to approve it.</small>
-        </label>
-        <label><span className="mono">Role</span><input id="role" required value={role} onChange={(e) => setRole(e.target.value)} />{err("role")}</label>
-        <label><span className="mono">Drive</span>
-          <select id="drive" value={driveType} onChange={(e) => setDriveType(e.target.value as typeof driveType)}>{DRIVE_TYPES.map((d) => <option key={d} value={d}>{DRIVE_LABEL[d]}</option>)}</select></label>
-        <label><span className="mono">Outcome</span>
-          <select id="outcome" value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)}>{OUTCOMES.map((o) => <option key={o} value={o}>{OUTCOME_LABEL[o]}</option>)}</select></label>
-        <label><span className="mono">Year</span>
-          <select id="year" value={year} onChange={(e) => setYear(e.target.value)}>{Array.from({ length: 5 }, (_, i) => THIS_YEAR - i).map((y) => <option key={y}>{y}</option>)}</select>{err("interviewYear")}</label>
-        <label><span className="mono">Month (optional)</span>
-          <select id="month" value={month} onChange={(e) => setMonth(e.target.value)}><option value="">Not sure</option>{Array.from({ length: 12 }, (_, i) => <option key={i} value={i + 1}>{new Date(2000, i).toLocaleString("en", { month: "long" })}</option>)}</select></label>
-      </div>
+      {/* Design source: Stitch "Share Your Interview", card 1 "Role & Overview" */}
+      <section className={card}>
+        <h2 className="flex items-center gap-2 text-lg font-bold"><span className="w-6 h-6 rounded-[50%] bg-primary text-on-primary text-xs flex items-center justify-center">1</span>Role and overview</h2>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <label><span>Company</span>
+            <input id="company" required list="companies" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Start typing" autoComplete="off" />
+            <datalist id="companies">{suggest.map((c) => <option key={c.slug} value={c.name} />)}</datalist>{err("company")}
+            <small>Not listed? Type the name. A new company waits for an admin to approve it.</small>
+          </label>
+          <label><span>Role</span><input id="role" required value={role} onChange={(e) => setRole(e.target.value)} placeholder="SDE-1" />{err("role")}<small>Include the level, e.g. SDE-1 or Intern.</small></label>
+        </div>
+        <Segmented label="Drive type" value={driveType} onChange={setDriveType} options={DRIVE_TYPES.map((d) => ({ value: d, label: DRIVE_LABEL[d] }))} />
+        <Segmented label="Outcome" value={outcome} onChange={setOutcome} options={OUTCOMES.map((o) => ({ value: o, label: OUTCOME_LABEL[o] }))} />
+        <div className="grid grid-cols-2 gap-4 max-w-md">
+          <label><span>Year</span>
+            <select id="year" value={year} onChange={(e) => setYear(e.target.value)}>{Array.from({ length: 5 }, (_, i) => THIS_YEAR - i).map((y) => <option key={y}>{y}</option>)}</select>{err("interviewYear")}</label>
+          <label><span>Month (optional)</span>
+            <select id="month" value={month} onChange={(e) => setMonth(e.target.value)}><option value="">Not sure</option>{Array.from({ length: 12 }, (_, i) => <option key={i} value={i + 1}>{new Date(2000, i).toLocaleString("en", { month: "long" })}</option>)}</select></label>
+        </div>
+      </section>
 
-      {mode === "quick" ? (
-        <label><span className="mono">What happened?</span>
-          <textarea id="freeText" required rows={8} maxLength={4000} value={freeText} onChange={(e) => setFreeText(e.target.value)} placeholder="The rounds in order, what each one asked, and what you would tell a junior." />{err("freeText")}
-          <small>No interviewer names. No confidential assessment questions pasted word for word.</small>
-        </label>
-      ) : (
-        <>
-          <RoundsEditor rounds={rounds} onChange={setRounds} />
-          {err("rounds")}
-        </>
-      )}
+      {/* Card 2 "Interview Rounds" */}
+      <section className="space-y-4">
+        <h2 className="flex items-center gap-2 text-lg font-bold"><span className="w-6 h-6 rounded-[50%] bg-primary text-on-primary text-xs flex items-center justify-center">2</span>{mode === "quick" ? "What happened?" : "Interview rounds"}</h2>
+        {mode === "quick" ? (
+          <label><span className="sr-only">What happened?</span>
+            <textarea id="freeText" required rows={8} maxLength={4000} value={freeText} onChange={(e) => setFreeText(e.target.value)} placeholder="The rounds in order, what each one asked, and what you would tell a junior." />{err("freeText")}
+            <small>No interviewer names. No confidential assessment questions pasted word for word.</small>
+          </label>
+        ) : (
+          <>
+            <RoundsEditor rounds={rounds} onChange={setRounds} />
+            {err("rounds")}
+          </>
+        )}
+      </section>
 
-      <label className="check"><input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} /><span>Post anonymously. Readers will see your batch only, never your name or branch.</span></label>
+      <section className="space-y-4">
+        <label className="check bg-surface-container-low rounded-xl p-4"><input type="checkbox" checked={anon} onChange={(e) => setAnon(e.target.checked)} /><span><b>Post anonymously</b><br /><span className="text-on-surface-variant">Readers will see only your batch (for example Anonymous · 2027), never your name or branch.</span></span></label>
+        {/* The consent sentence must sit directly above the submit button (project rule). */}
+        <div className="consent-box">
+          <label className="check"><input id="consent" type="checkbox" required checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>{CONSENT}</span></label>
+          {err("consent")}
+        </div>
+        {error && <Notice kind="error">{error}</Notice>}
+        <div className="flex justify-end"><Button type="submit" disabled={busy || !consent}>{busy ? "Submitting…" : "Submit for review"}<Icon name="send" className="!text-base" /></Button></div>
+      </section>
 
-      <div className="consent-box">
-        <p>{CONSENT}</p>
-        <label className="check"><input id="consent" type="checkbox" required checked={consent} onChange={(e) => setConsent(e.target.checked)} /><span>I understand and agree</span></label>
-        {err("consent")}
-      </div>
-
-      {error && <p role="alert" className="auth-error">{error}</p>}
-      <button className="btn btn-primary" type="submit" disabled={busy || !consent}>{busy ? "Submitting…" : "Submit for review"}</button>
+      <p className="flex gap-3 bg-surface-container-low rounded-xl p-4 text-xs text-on-surface-variant"><Icon name="gavel" className="text-primary" /><span><b className="text-on-surface">Community guidelines.</b> No interviewer names, no confidential company documents or code, nobody&apos;s personal salary. Posts that break these rules are rejected in review.</span></p>
     </form>
   );
 }
