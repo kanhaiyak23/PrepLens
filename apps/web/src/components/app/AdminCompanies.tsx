@@ -5,6 +5,9 @@ import type { CompanySummary, PendingCompany } from "@preplens/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { api, ApiError } from "@/lib/api";
 import { shortDate } from "@/lib/format";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
+import { AdminEmpty, AdminRow, AdminSection } from "./AdminRow";
 
 /** A student-suggested company starts pending. Approve it, or merge a typo into the real company. Every decision is logged. */
 export function AdminCompanies() {
@@ -35,28 +38,26 @@ export function AdminCompanies() {
     } catch (e) { setMsg({ ok: false, text: (e as ApiError).message }); } finally { setBusy(false); }
   }
 
-  if (pending === null) return null;
+  if (pending === null) return <p className="text-on-surface-variant">Loading…</p>;
   return (
-    <section className="admin-block">
-      <h2 className="mono">Companies waiting for approval</h2>
-      {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "auth-ok" : "auth-error"}>{msg.text}</p>}
-      {pending.length === 0 ? <p className="muted">None. Every suggested company has been handled.</p> : (
-        <ul className="mylist">
-          {pending.map((c) => (
-            <li key={c.slug} className="myrow">
-              <div><h3>{c.name}</h3><p className="xcard-meta"><span>{c.postCount} {c.postCount === 1 ? "post" : "posts"}</span><span>suggested {shortDate(c.createdAt)}</span></p></div>
-              <div className="myside company-actions">
-                <button className="btn btn-primary small" disabled={busy} onClick={() => decide(c.slug, "approve")}>Approve as new</button>
-                <label className="merge"><span className="mono">Or merge into</span>
-                  <select value={target[c.slug] ?? ""} onChange={(e) => setTarget((t) => ({ ...t, [c.slug]: e.target.value }))}>
-                    <option value="">Choose…</option>{active.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
+    <AdminSection title="Companies waiting for approval" hint="A student typed a company we do not have yet. Approve it as new, or merge a typo into the real company (for example Amazon Web Services Inc into Amazon).">
+      {msg && <Notice kind={msg.ok ? "success" : "error"}>{msg.text}</Notice>}
+      {pending.length === 0 ? <AdminEmpty>No companies are waiting. Every suggestion has been handled.</AdminEmpty> : (
+        <ul className="p-0 m-0 grid gap-4">
+          {pending.map((x) => (
+            <AdminRow key={x.slug} title={x.name} meta={[`${x.postCount} ${x.postCount === 1 ? "post" : "posts"}`, `Suggested ${shortDate(x.createdAt)}`]}
+              actions={<Button size="sm" disabled={busy} onClick={() => decide(x.slug, "approve")}>Approve as new</Button>}>
+              <div className="flex flex-wrap items-end gap-3 bg-surface-container-low rounded-xl p-4">
+                <label className="flex-1 min-w-[12rem]"><span>Or merge into</span>
+                  <select value={target[x.slug] ?? ""} onChange={(e) => setTarget((t) => ({ ...t, [x.slug]: e.target.value }))}>
+                    <option value="">Choose a company…</option>{active.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
                   </select></label>
-                <button className="btn btn-ghost small" disabled={busy || !target[c.slug]} onClick={() => decide(c.slug, "merge")}>Merge</button>
+                <Button size="sm" variant="secondary" disabled={busy || !target[x.slug]} onClick={() => decide(x.slug, "merge")}>Merge</Button>
               </div>
-            </li>
+            </AdminRow>
           ))}
         </ul>
       )}
-    </section>
+    </AdminSection>
   );
 }

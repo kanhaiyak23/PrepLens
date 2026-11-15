@@ -5,6 +5,9 @@ import { BRANCHES, CAMPUSES, DRIVE_TYPES, OUTCOMES, type AdminPostDto } from "@p
 import { useAuth } from "@/hooks/useAuth";
 import { api, ApiError } from "@/lib/api";
 import { CAMPUS_LABEL, DRIVE_LABEL, OUTCOME_LABEL } from "@/lib/format";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
+import { AdminSection } from "./AdminRow";
 
 const THIS_YEAR = new Date().getFullYear();
 
@@ -32,28 +35,25 @@ export function AdminPostForm() {
   }
 
   return (
-    <section className="admin-block">
-      <details>
-        <summary className="mono">Post on behalf of a student</summary>
-        <form onSubmit={submit} className="sform" style={{ marginTop: 16 }}>
+    <AdminSection title="Post on behalf of a student" hint="Use this only when a student gave consent, for example someone from another campus. The post goes public at once and is written to the log.">
+        <form onSubmit={submit} className="sform bg-surface-container-lowest border border-surface-variant rounded-xl p-5 sm:p-6">
           <div className="sgrid">
-            <label><span className="mono">Company</span><input required value={f.company} onChange={(e) => set("company", e.target.value)} /></label>
-            <label><span className="mono">Role</span><input required value={f.role} onChange={(e) => set("role", e.target.value)} /></label>
-            <label><span className="mono">Drive</span><select value={f.driveType} onChange={(e) => set("driveType", e.target.value)}>{DRIVE_TYPES.map((d) => <option key={d} value={d}>{DRIVE_LABEL[d]}</option>)}</select></label>
-            <label><span className="mono">Outcome</span><select value={f.outcome} onChange={(e) => set("outcome", e.target.value)}>{OUTCOMES.map((o) => <option key={o} value={o}>{OUTCOME_LABEL[o]}</option>)}</select></label>
-            <label><span className="mono">Year</span><select value={f.year} onChange={(e) => set("year", e.target.value)}>{Array.from({ length: 5 }, (_, i) => THIS_YEAR - i).map((y) => <option key={y}>{y}</option>)}</select></label>
-            <label><span className="mono">Campus</span><select value={f.campus} onChange={(e) => set("campus", e.target.value)}>{CAMPUSES.map((c) => <option key={c} value={c}>{CAMPUS_LABEL[c]}</option>)}</select></label>
-            <label><span className="mono">Student name</span><input required value={f.authorName} onChange={(e) => set("authorName", e.target.value)} /></label>
-            <label><span className="mono">Student batch</span><input required type="number" min={2000} max={2100} value={f.authorBatch} onChange={(e) => set("authorBatch", e.target.value)} /></label>
-            <label><span className="mono">Student branch</span><select value={f.authorBranch} onChange={(e) => set("authorBranch", e.target.value)}>{BRANCHES.map((b) => <option key={b}>{b}</option>)}</select></label>
+            <label><span>Company</span><input required value={f.company} onChange={(e) => set("company", e.target.value)} /></label>
+            <label><span>Role</span><input required value={f.role} onChange={(e) => set("role", e.target.value)} /></label>
+            <label><span>Drive</span><select value={f.driveType} onChange={(e) => set("driveType", e.target.value)}>{DRIVE_TYPES.map((d) => <option key={d} value={d}>{DRIVE_LABEL[d]}</option>)}</select></label>
+            <label><span>Outcome</span><select value={f.outcome} onChange={(e) => set("outcome", e.target.value)}>{OUTCOMES.map((o) => <option key={o} value={o}>{OUTCOME_LABEL[o]}</option>)}</select></label>
+            <label><span>Year</span><select value={f.year} onChange={(e) => set("year", e.target.value)}>{Array.from({ length: 5 }, (_, i) => THIS_YEAR - i).map((y) => <option key={y}>{y}</option>)}</select></label>
+            <label><span>Campus</span><select value={f.campus} onChange={(e) => set("campus", e.target.value)}>{CAMPUSES.map((c) => <option key={c} value={c}>{CAMPUS_LABEL[c]}</option>)}</select></label>
+            <label><span>Student name</span><input required value={f.authorName} onChange={(e) => set("authorName", e.target.value)} /></label>
+            <label><span>Student batch</span><input required type="number" min={2000} max={2100} value={f.authorBatch} onChange={(e) => set("authorBatch", e.target.value)} /></label>
+            <label><span>Student branch</span><select value={f.authorBranch} onChange={(e) => set("authorBranch", e.target.value)}>{BRANCHES.map((b) => <option key={b}>{b}</option>)}</select></label>
           </div>
-          <label><span className="mono">What happened</span><textarea required rows={5} maxLength={4000} value={f.text} onChange={(e) => set("text", e.target.value)} /></label>
+          <label><span>What happened</span><textarea required rows={5} maxLength={4000} value={f.text} onChange={(e) => set("text", e.target.value)} /></label>
           <label className="check"><input type="checkbox" checked={f.anon} onChange={(e) => set("anon", e.target.checked)} /><span>Show as anonymous (batch only)</span></label>
-          <label className="check consent-box"><input type="checkbox" required checked={f.consented} onChange={(e) => set("consented", e.target.checked)} /><span>The student has agreed to this being public on the internet and knows they can ask for it to be withdrawn.</span></label>
-          {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "auth-ok" : "auth-error"}>{msg.text}</p>}
-          <button className="btn btn-primary" disabled={busy || !f.consented}>{busy ? "Posting…" : "Post now"}</button>
+          <div className="consent-box"><label className="check"><input type="checkbox" required checked={f.consented} onChange={(e) => set("consented", e.target.checked)} /><span>The student has agreed to this being public on the internet and knows they can ask for it to be withdrawn.</span></label></div>
+          {msg && <Notice kind={msg.ok ? "success" : "error"}>{msg.text}</Notice>}
+          <div><Button disabled={busy || !f.consented}>{busy ? "Posting…" : "Post now"}</Button></div>
         </form>
-      </details>
-    </section>
+    </AdminSection>
   );
 }

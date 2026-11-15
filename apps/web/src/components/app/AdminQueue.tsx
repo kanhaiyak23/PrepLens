@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { EXPERIENCE_STATUSES, type AdminCard, type ExperienceStatus, type MeResponse, type ModerationAction, type Page } from "@preplens/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { api, ApiError } from "@/lib/api";
-import { OUTCOME_CLASS, OUTCOME_LABEL, STATUS_LABEL, authorLabel, shortDate } from "@/lib/format";
+import { OUTCOME_LABEL, OUTCOME_TONE, STATUS_LABEL, authorLabel, shortDate } from "@/lib/format";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
+import { AdminEmpty, AdminRow, AdminSection, RejectForm } from "./AdminRow";
 
 const ACTIONS: Record<ExperienceStatus, { action: ModerationAction; label: string }[]> = {
   pending: [{ action: "approve", label: "Approve" }, { action: "reject", label: "Reject" }],
@@ -60,38 +64,28 @@ export function AdminQueue() {
   if (me.role !== "admin") return <div className="empty-state"><h2>Admins only.</h2><p>This page is for the PrepLens admin team.</p><Link className="btn btn-primary" href="/">Back home</Link></div>;
 
   return (
-    <>
-      <h2 className="mono queue-h">Posts</h2>
-      <div className="pillrow" role="tablist" aria-label="Queue">
-        {EXPERIENCE_STATUSES.map((s) => <button key={s} role="tab" className="pill" aria-selected={status === s} onClick={() => { setRows(null); setStatus(s); }}>{STATUS_LABEL[s]}</button>)}
+    <AdminSection title="Posts" hint="Pick a status to see what is in it. Approving publishes a post; rejecting sends your reason to the author.">
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Queue">
+        {EXPERIENCE_STATUSES.map((s) => <button key={s} type="button" role="tab" className="pill" aria-selected={status === s} onClick={() => { setRows(null); setStatus(s); }}>{STATUS_LABEL[s]}</button>)}
       </div>
-      {error && <p role="alert" className="auth-error">{error}</p>}
-      {ok && <p role="status" className="auth-ok">{ok}</p>}
-      {rows === null ? <p className="empty">Loading…</p> : rows.length === 0 ? <div className="empty-state"><h2>Nothing here.</h2><p>No experiences with the status &ldquo;{STATUS_LABEL[status]}&rdquo;.</p></div> : (
-        <ul className="mylist">
+      {error && <Notice kind="error">{error}</Notice>}
+      {ok && <Notice kind="success">{ok}</Notice>}
+      {rows === null ? <p className="text-on-surface-variant">Loading…</p> : rows.length === 0 ? <AdminEmpty>No experiences with the status &ldquo;{STATUS_LABEL[status]}&rdquo;.</AdminEmpty> : (
+        <ul className="p-0 m-0 grid gap-4">
           {rows.map((x) => (
-            <li key={x.id} className="myrow">
-              <div>
-                <h3><Link href={`/experience/${x.id}`}>{x.company.name}</Link> <span className="muted">· {x.role} · {x.interviewYear}</span></h3>
-                <p className="xcard-meta"><span className={`chip ${OUTCOME_CLASS[x.outcome]}`}>{OUTCOME_LABEL[x.outcome]}</span><span>{x.roundCount} {x.roundCount === 1 ? "round" : "rounds"}</span><span>{authorLabel(x.author)}</span><span>{shortDate(x.createdAt)}</span>{x.openReports > 0 && <span className="chip bad">{x.openReports} open {x.openReports === 1 ? "report" : "reports"}</span>}</p>
-                {x.reviewNote && <p className="rnote">Note: {x.reviewNote}</p>}
-                {rejecting === x.id && (
-                  <form className="reject-form" onSubmit={(e) => { e.preventDefault(); void decide(x.id, "reject", note); }}>
-                    <label><span className="mono">Reason shown to the author</span><input required value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} /></label>
-                    <div className="xbtns"><button className="btn btn-primary small" disabled={busy}>Send rejection</button><button type="button" className="btn btn-ghost small" onClick={() => setRejecting(null)}>Cancel</button></div>
-                  </form>
-                )}
-              </div>
-              <div className="myside">
-                {ACTIONS[status].map((a) => (
-                  <button key={a.action} className={`btn small ${a.action === "approve" || a.action === "reinstate" ? "btn-primary" : "btn-ghost"}`} disabled={busy}
-                    onClick={() => (a.action === "reject" ? setRejecting(x.id) : decide(x.id, a.action))}>{a.label}</button>
-                ))}
-              </div>
-            </li>
+            <AdminRow key={x.id} title={x.company.name} href={`/experience/${x.id}`} subtitle={`${x.role} · ${x.interviewYear}`}
+              badges={<><Badge tone={OUTCOME_TONE[x.outcome]}>{OUTCOME_LABEL[x.outcome]}</Badge>{x.openReports > 0 && <Badge tone="danger">{x.openReports} open {x.openReports === 1 ? "report" : "reports"}</Badge>}</>}
+              meta={[`${x.roundCount} ${x.roundCount === 1 ? "round" : "rounds"}`, authorLabel(x.author), `Submitted ${shortDate(x.createdAt)}`]}
+              actions={ACTIONS[status].map((a) => (
+                <Button key={a.action} size="sm" variant={a.action === "approve" || a.action === "reinstate" ? "primary" : a.action === "remove" ? "danger" : "secondary"} disabled={busy}
+                  onClick={() => (a.action === "reject" ? setRejecting(x.id) : decide(x.id, a.action))}>{a.label}</Button>
+              ))}>
+              {x.reviewNote && <p className="rnote">Note: {x.reviewNote}</p>}
+              {rejecting === x.id && <RejectForm note={note} onNote={setNote} busy={busy} onSubmit={() => void decide(x.id, "reject", note)} onCancel={() => setRejecting(null)} />}
+            </AdminRow>
           ))}
         </ul>
       )}
-    </>
+    </AdminSection>
   );
 }

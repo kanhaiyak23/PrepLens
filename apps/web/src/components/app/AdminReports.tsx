@@ -1,11 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { AdminReport } from "@preplens/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { api, ApiError } from "@/lib/api";
 import { shortDate } from "@/lib/format";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
+import { AdminEmpty, AdminRow, AdminSection } from "./AdminRow";
 
 const REASON: Record<string, string> = { "interviewer-named": "Names an interviewer", confidential: "Confidential material", false: "Looks false", abusive: "Abusive", other: "Something else" };
 
@@ -31,28 +34,24 @@ export function AdminReports() {
     catch (e) { setMsg({ ok: false, text: (e as ApiError).message }); } finally { setBusy(false); }
   }
 
-  if (rows === null) return null;
+  if (rows === null) return <p className="text-on-surface-variant">Loading…</p>;
   return (
-    <section className="admin-block">
-      <h2 className="mono">Open reports</h2>
-      {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "auth-ok" : "auth-error"}>{msg.text}</p>}
-      {rows.length === 0 ? <p className="muted">No open reports.</p> : (
-        <ul className="mylist">
-          {rows.map((r) => (
-            <li key={r.id} className="myrow">
-              <div>
-                <h3><Link href={`/experience/${r.experienceId}`}>{r.companyName}</Link> <span className="muted">· {r.role}</span></h3>
-                <p className="xcard-meta"><span className="chip bad">{REASON[r.reason] ?? r.reason}</span><span>{shortDate(r.createdAt)}</span></p>
-                {r.note && <p className="rnote">&ldquo;{r.note}&rdquo;</p>}
-              </div>
-              <div className="myside">
-                <button className="btn btn-ghost small" disabled={busy} onClick={() => act(`/api/v1/admin/reports/${r.id}/dismiss`, "Report dismissed.")}>Dismiss</button>
-                {r.experienceStatus === "published" && <button className="btn btn-primary small" disabled={busy} onClick={() => act(`/api/v1/admin/experiences/${r.experienceId}/remove`, "Post removed. Its open reports are settled.")}>Remove post</button>}
-              </div>
-            </li>
+    <AdminSection title="Open reports" hint="Students flagged these posts. Dismiss a report if it is wrong, or remove the post, which settles every open report on it.">
+      {msg && <Notice kind={msg.ok ? "success" : "error"}>{msg.text}</Notice>}
+      {rows.length === 0 ? <AdminEmpty>No open reports.</AdminEmpty> : (
+        <ul className="p-0 m-0 grid gap-4">
+          {rows.map((x) => (
+            <AdminRow key={x.id} danger title={x.companyName} href={`/experience/${x.experienceId}`} subtitle={x.role}
+              badges={<Badge tone="danger">{REASON[x.reason] ?? x.reason}</Badge>} meta={[`Reported ${shortDate(x.createdAt)}`]}
+              actions={<>
+                <Button size="sm" variant="secondary" disabled={busy} onClick={() => act(`/api/v1/admin/reports/${x.id}/dismiss`, "Report dismissed.")}>Dismiss</Button>
+                {x.experienceStatus === "published" && <Button size="sm" variant="danger" disabled={busy} onClick={() => act(`/api/v1/admin/experiences/${x.experienceId}/remove`, "Post removed. Its open reports are settled.")}>Remove post</Button>}
+              </>}>
+              {x.note && <p className="text-sm bg-surface-container-low rounded-xl px-4 py-3">&ldquo;{x.note}&rdquo;</p>}
+            </AdminRow>
           ))}
         </ul>
       )}
-    </section>
+    </AdminSection>
   );
 }

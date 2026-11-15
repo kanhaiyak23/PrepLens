@@ -1,28 +1,13 @@
 import type { Metadata } from "next";
-import { AppHeader } from "@/components/app/AppHeader";
-import { AdminQueue } from "@/components/app/AdminQueue";
-import { AdminCompanies } from "@/components/app/AdminCompanies";
-import { AdminUpdates } from "@/components/app/AdminUpdates";
-import { AdminReports } from "@/components/app/AdminReports";
-import { AdminPostForm } from "@/components/app/AdminPostForm";
+import { PageShell } from "@/components/app/PageShell";
+import { AdminConsole } from "@/components/app/AdminConsole";
 
-export const metadata: Metadata = { title: "Moderation · PrepLens" };
+export const metadata: Metadata = { title: "Admin · PrepLens" };
 
 export default function Page() {
   return (
-    <>
-      <AppHeader />
-      <main id="top" className="app-page on-paper">
-        <div className="wrap narrow">
-          <h1 className="display page-title">Moderation</h1>
-          <p className="lede" style={{ marginBottom: 28 }}>Review what students share. Every decision is logged.</p>
-          <AdminQueue />
-          <AdminUpdates />
-          <AdminReports />
-          <AdminCompanies />
-          <AdminPostForm />
-        </div>
-      </main>
-    </>
+    <PageShell eyebrow="Placement portal · moderation" title="Admin moderation" description="Review what students share, handle reports, tidy company names. Every decision is logged." width="max-w-6xl">
+      <AdminConsole />
+    </PageShell>
   );
 }

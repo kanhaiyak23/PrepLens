@@ -1,11 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { AdminUpdate } from "@preplens/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { api, ApiError } from "@/lib/api";
 import { OUTCOME_LABEL, shortDate } from "@/lib/format";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
+import { AdminEmpty, AdminRow, AdminSection, RejectForm } from "./AdminRow";
 
 /** What the author wants to change, in words. */
 function summarise(u: AdminUpdate): string[] {
@@ -45,34 +47,21 @@ export function AdminUpdates() {
     } catch (e) { setMsg({ ok: false, text: (e as ApiError).message }); } finally { setBusy(false); }
   }
 
-  if (rows === null) return null;
+  if (rows === null) return <p className="text-on-surface-variant">Loading…</p>;
   return (
-    <section className="admin-block">
-      <h2 className="mono">Edits waiting for review</h2>
-      {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "auth-ok" : "auth-error"}>{msg.text}</p>}
-      {rows.length === 0 ? <p className="muted">None.</p> : (
-        <ul className="mylist">
-          {rows.map((u) => (
-            <li key={u.id} className="myrow">
-              <div>
-                <h3><Link href={`/experience/${u.id}`}>{u.company.name}</Link> <span className="muted">· {u.role}</span></h3>
-                <ul className="changes">{summarise(u).map((t) => <li key={t}>{t}</li>)}</ul>
-                <p className="xcard-meta"><span>submitted {shortDate(u.submittedAt)}</span></p>
-                {reject === u.id && (
-                  <form className="reject-form" onSubmit={(e) => { e.preventDefault(); void decide(u.id, "reject"); }}>
-                    <label><span className="mono">Reason shown to the author</span><input required value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} /></label>
-                    <div className="xbtns"><button className="btn btn-primary small" disabled={busy}>Send rejection</button><button type="button" className="btn btn-ghost small" onClick={() => setReject(null)}>Cancel</button></div>
-                  </form>
-                )}
-              </div>
-              <div className="myside">
-                <button className="btn btn-primary small" disabled={busy} onClick={() => decide(u.id, "approve")}>Approve</button>
-                <button className="btn btn-ghost small" disabled={busy} onClick={() => setReject(u.id)}>Reject</button>
-              </div>
-            </li>
+    <AdminSection title="Edits waiting for review" hint="Authors changed a post that is already live. Readers keep seeing the approved version until you approve the change.">
+      {msg && <Notice kind={msg.ok ? "success" : "error"}>{msg.text}</Notice>}
+      {rows.length === 0 ? <AdminEmpty>No edits are waiting.</AdminEmpty> : (
+        <ul className="p-0 m-0 grid gap-4">
+          {rows.map((x) => (
+            <AdminRow key={x.id} title={x.company.name} href={`/experience/${x.id}`} subtitle={x.role} meta={[`Submitted ${shortDate(x.submittedAt)}`]}
+              actions={<><Button size="sm" disabled={busy} onClick={() => decide(x.id, "approve")}>Approve</Button><Button size="sm" variant="secondary" disabled={busy} onClick={() => setReject(x.id)}>Reject</Button></>}>
+              <ul className="m-0 pl-5 list-disc text-sm space-y-1">{summarise(x).map((t) => <li key={t}>{t}</li>)}</ul>
+              {reject === x.id && <RejectForm note={note} onNote={setNote} busy={busy} onSubmit={() => void decide(x.id, "reject")} onCancel={() => setReject(null)} />}
+            </AdminRow>
           ))}
         </ul>
       )}
-    </section>
+    </AdminSection>
   );
 }
