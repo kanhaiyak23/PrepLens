@@ -600,3 +600,15 @@ flowchart TD
 **Why.** Dependency Inversion and Interface Segregation do not need a compiler: the ports are still the only thing services know about, now documented as typedefs and enforced by the fake adapters in tests. Runtime validation at every boundary is Zod (shared), so the safety that matters at the edge does not come from static types. One contract package keeps the web and API from drifting (ADR-24).
 
 **Rejected.** (1) Converting `packages/shared` too: the web app would lose types for every API response. (2) Keeping TS with `allowJs`: no benefit over the status quo. Trade-off accepted: renames and signature changes in the API are no longer caught by `tsc`; the 94 tests and the Zod schemas are the safety net.
+
+## ADR-28 Web UI follows the owner's Stitch design, built from tokens, primitives and lookup tables
+
+**Problem.** The first frontend was an art-directed cinematic site that students could not read: too many sections, unclear labels. The owner designed the real screens in Google Stitch (project `3022551661059433556`: Home, Sign in, Experiences, Experience detail, Share your interview, My posts, Profile, Admin moderation) and asked for the app to be rebuilt from them.
+
+**Decision.** (1) **Design tokens** in one place: the Stitch palette, Public Sans and radii live in `globals.css` under `@theme`; components use names (`bg-primary`), never hex. (2) **UI primitives** in `components/ui/` (Icon, Button, Badge, Notice, Tabs, Segmented, EmptyState) and **layout components** (`PageShell`, `AppHeader`, `AppFooter`); pages only compose them. (3) **Lookup tables instead of conditionals** for look: `VARIANT` (Button), `TONE` (Badge), `OUTCOME_TONE` and `STATUS_TONE` (`lib/format.ts`), `PANELS` (`AdminConsole`). (4) One `useMe()` hook for the signed-in profile. (5) Presentational components (`ExperienceCard`, `ExperienceView`) take data as props and never fetch. (6) Every component that copies a Stitch screen says so in a `Design source:` comment, including what was dropped and why.
+
+**Why.** Single source of truth for design values; Single Responsibility (frame, content, data are separate); Open/Closed (a new outcome, status, button look or admin tool is one table entry); Dependency Inversion (components depend on `useMe` and `api`, not on URLs and `fetch`); DRY (the profile fetch existed in five components).
+
+**Rejected.** (a) Pasting the Stitch HTML as-is: no reuse, no accessibility pass, fake data baked in. (b) A component library (shadcn, MUI): extra dependency for eight screens. (c) A repository or service class layer in the web app: the API already is that layer (ADR-21); a second one would be indirection with no problem to solve.
+
+**Deliberate differences from the mock.** Anything with no real data behind it is left out, following the rule of no fake numbers: archive count and "page 1 of 11", difficulty, per-round duration and platform, view counts, "peer impact", admin "automated privacy check", author photos. The mock's right-hand admin column became tabs. The earlier rule "no violet" in CLAUDE.md section 8 is superseded: the owner's palette is violet.

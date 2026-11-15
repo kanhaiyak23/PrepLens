@@ -14,7 +14,7 @@ Anti-goals: not a job board, not a DSA practice site, not a discussion forum (no
 
 ## 2. Verified facts
 
-- `apps/web` exists: Next.js 16 (App Router, TypeScript, Tailwind 4). Landing page (`/`, cinematic, sample content marked Sample) plus working pages calling the API: `/signin` (Google via Supabase Auth), `/auth/callback`, `/welcome` (profile), `/archive` (server-rendered, URL filters, keyset paging), `/experience/[id]` (server-rendered; owner/admin fallback fetches with the token), `/submit` (quick or round-by-round, consent sentence), `/me` (my posts and saved), `/admin` (moderation queue). Client auth: `@supabase/ssr` browser client + `proxy.ts` session refresh; every API call sends the access token as a Bearer header. Env: `apps/web/.env.local` (public values only, gitignored). Libraries: gsap, three, motion, @supabase/ssr, @supabase/supabase-js.
+- `apps/web` exists: Next.js 16 (App Router, TypeScript, Tailwind 4). Home page (`/`) plus working pages calling the API: `/signin` (Google via Supabase Auth), `/auth/callback`, `/profile` (batch, branch, sign out, delete; `/welcome` redirects here), `/archive` (server-rendered, URL filters, keyset paging), `/experience/[id]` (server-rendered; owner/admin fallback fetches with the token), `/submit` (quick or round-by-round, consent sentence), `/me` (my posts and saved), `/admin` (moderation queue). Client auth: `@supabase/ssr` browser client + `proxy.ts` session refresh; every API call sends the access token as a Bearer header. Env: `apps/web/.env.local` (public values only, gitignored). Libraries: @supabase/ssr, @supabase/supabase-js (gsap, three and motion were removed). **The UI is built from the owner's Stitch project `3022551661059433556` (ADR-28): tokens in `globals.css`, primitives in `components/ui/`, `Design source:` comments say which screen each component copies. Stitch MCP is registered at user scope (`stitch`, needs a restart of Claude Code to load).**
 - Monorepo (npm workspaces): root `package.json` with `apps/*` and `packages/*`.
   - `packages/shared` (`@preplens/shared`): Zod schemas, enums, response types, error codes. Built with `tsc` to `dist`; build it before running or testing the API (the root scripts do).
   - `apps/api` (`@preplens/api`): Express 5 in plain JavaScript (ES modules, ADR-27; ports are JSDoc typedefs in `domain/ports.js`). Folders: `config/`, `domain/` (errors, ports, viewer, context), `infrastructure/` (Supabase adapters, rate limiter, repository factory), `services/`, `controllers/`, `routes/`, `middleware/`, `lib/`, plus `container.js` (composition root), `app.js` (no listen), `server.js`.
@@ -100,27 +100,13 @@ Required constraints and rules:
 - Web app: official `@supabase/ssr` pattern (browser and server clients, cookie-based session) for sign-in only.
 - API: a user-scoped Supabase client per request built from the caller's token; a separate service-role client only for the listed system tasks (ADR-23).
 
-## 8. Design direction (PLANNED, proposal for owner review)
+## 8. Design direction (VERIFIED, owner-supplied)
 
-Fresh identity. The old navy/iris/saffron palette and Lora/Inter pairing are **not** reused. No violet or lavender anywhere in the design.
+The design is the owner's Stitch project `3022551661059433556` (8 screens: Home, Sign in, Experiences, Experience detail, Share your interview, My posts, Profile, Admin moderation). It replaces the earlier "aperture" proposal, the vermilion/paper palette and the serif display font, and it supersedes the old "no violet" rule: the palette is violet (primary `#4f378a`), the font is Public Sans, icons are Material Symbols, radii are small. All values live in `apps/web/src/app/globals.css` (`@theme`); change them there only. Decisions and the list of things deliberately left out of the mock (anything with no real data) are in ADR-28.
 
-**Concept: "the aperture."** PrepLens is a lens on other people's interviews. An interview is a sequence of exposures (rounds); each one is brought into focus. The motif is a thin ring/aperture and a focus-pull: blurred to sharp on entry, ring-shaped progress for rounds. Used sparingly and only where it carries meaning.
+**Rules that still apply:** every screen shows real content (no fake stats; empty states are designed instead); anonymous authors render as `Anonymous · <batch>` only; the consent sentence sits directly above the submit button.
 
-**Character:** editorial and precise. Strong typography, generous whitespace, hairline rules, dense data shown calmly. References for quality (not to copy): Linear for consistency, Stripe for hierarchy, Framer for motion, print editorial for type.
-
-**Starting tokens (ASSUMPTION, finalised in Phase 1):**
-
-- Ground: warm paper `#F4F1EA`; surfaces white; text ink `#14171A`; dark mode as a real counterpart, not an inversion.
-- Signal accent: vermilion `#E2472B`, used for one primary action per screen and focus.
-- Support: deep teal for "selected", brick for "rejected", amber for "in process", slate for "withdrew". Outcome colour is information, never decoration.
-- Type: a high-contrast serif for display (candidate: Instrument Serif), a clean grotesk for UI (candidate: Geist), a mono for figures and codes (candidate: Geist Mono). Fonts are confirmed in Phase 1 before use.
-- Radius: small and consistent; hairline borders instead of heavy shadows.
-
-**Avoid:** generic AI dashboard layouts, heavy gradients, glassmorphism, card-in-card nesting, decorative shapes without purpose, shadows as structure, stock photography.
-
-**Rules:** every screen shows real content (no fake stats or mock production data; empty states are designed instead); anonymous authors render as `Anonymous · <batch>` only.
-
-## 9. Motion principles (PLANNED)
+## 9. Motion principles (PLANNED, on hold: the Stitch design has no motion)
 
 - Animate only to explain state, order or causality: entrance of a list (short stagger), route change, round timeline reveal, count-up of real numbers, tab/filter transitions, button press feedback.
 - Use transform and opacity only; keep durations short and eased; interactions are interruptible.
