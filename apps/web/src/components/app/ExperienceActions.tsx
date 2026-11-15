@@ -5,7 +5,11 @@ import { useEffect, useState } from "react";
 import { REPORT_REASONS, type ExperienceDetail, type InteractionState, type ReportReason } from "@preplens/shared";
 import { useAuth } from "@/hooks/useAuth";
 import { api, ApiError } from "@/lib/api";
-import { STATUS_CLASS, STATUS_LABEL } from "@/lib/format";
+import { STATUS_LABEL, STATUS_TONE } from "@/lib/format";
+import { Badge } from "@/components/ui/Badge";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
+import { Notice } from "@/components/ui/Notice";
 
 const REASON_LABEL: Record<ReportReason, string> = {
   "interviewer-named": "Names an interviewer",
@@ -85,63 +89,67 @@ export function ExperienceActions({ id, initialUpvotes }: { id: string; initialU
     } catch (e) { say(e); } finally { setBusy(false); }
   }
 
-  if (loading) return <aside className="xaside" aria-busy="true" />;
+  const panel = "bg-surface-container-lowest border border-surface-variant rounded-xl p-5 space-y-3";
+
+  if (loading) return <aside className="space-y-4" aria-busy="true" />;
 
   if (!token) {
     return (
-      <aside className="xaside">
-        <p>Find this useful? Sign in to mark it helpful, save it, or report a problem.</p>
-        <Link className="btn btn-primary" href={`/signin?next=/experience/${id}`}>Sign in with Google</Link>
+      <aside className="space-y-4">
+        <div className={panel}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Community actions</p>
+          <p className="text-sm text-on-surface-variant">Find this useful? Sign in to mark it helpful, save it, or report a problem.</p>
+          <ButtonLink href={`/signin?next=/experience/${id}`} className="w-full">Sign in with Google</ButtonLink>
+        </div>
       </aside>
     );
   }
 
+  const canReact = !me?.status || me.status === "published";
   return (
-    <aside className="xaside">
-      {me?.status && (
-        <div className="xstatus">
-          <span className={`chip ${STATUS_CLASS[me.status]}`}>{STATUS_LABEL[me.status]}</span>
-          {me.reviewNote && <p>Reviewer note: {me.reviewNote}</p>}
+    <aside className="space-y-4">
+      {canReact && (
+        <div className={panel}>
+          <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Community actions</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant={voted ? "primary" : "secondary"} aria-pressed={voted} disabled={busy} onClick={toggleVote}><Icon name="thumb_up" className="!text-base" />Helpful ({votes})</Button>
+            <Button variant={saved ? "primary" : "secondary"} aria-pressed={saved} disabled={busy} onClick={toggleBookmark}><Icon name="bookmark" className="!text-base" />{saved ? "Saved" : "Save"}</Button>
+          </div>
+          {!me?.isOwner && !reporting && <button className="w-full text-xs text-on-surface-variant hover:text-on-surface flex items-center justify-center gap-1 cursor-pointer" onClick={() => setReporting(true)}><Icon name="flag" className="!text-sm" />Report this post</button>}
+          {reporting && (
+            <form onSubmit={sendReport} className="grid gap-3">
+              <label><span>What is wrong?</span>
+                <select value={reason} onChange={(e) => setReason(e.target.value as ReportReason)}>{REPORT_REASONS.map((r) => <option key={r} value={r}>{REASON_LABEL[r]}</option>)}</select>
+              </label>
+              <label><span>Details (optional)</span><input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} /></label>
+              <div className="flex gap-2"><Button disabled={busy} size="sm">Send report</Button><Button type="button" variant="quiet" size="sm" onClick={() => setReporting(false)}>Cancel</Button></div>
+            </form>
+          )}
         </div>
       )}
-      {(!me?.status || me.status === "published") && (
-        <div className="xbtns">
-          <button className={`btn ${voted ? "btn-primary" : "btn-ghost"}`} aria-pressed={voted} disabled={busy} onClick={toggleVote}>
-            {voted ? "Marked helpful" : "Mark helpful"} · {votes}
-          </button>
-          <button className={`btn ${saved ? "btn-primary" : "btn-ghost"}`} aria-pressed={saved} disabled={busy} onClick={toggleBookmark}>
-            {saved ? "Saved" : "Save for later"}
-          </button>
-          {!me?.isOwner && !reporting && <button className="btn btn-ghost" onClick={() => setReporting(true)}>Report</button>}
+
+      {(me?.status || me?.allowedActions?.length) && (
+        <div className={panel}>
+          <p className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Author view {me?.status && <Badge tone={STATUS_TONE[me.status]} dot>{STATUS_LABEL[me.status]}</Badge>}</p>
+          {me?.reviewNote && <Notice kind="error" title="Reviewer note">{me.reviewNote}</Notice>}
+          {me?.allowedActions?.includes("cancel-update") && (
+            <div className="space-y-2"><Badge tone="info">Change waiting for review</Badge><p className="text-xs text-on-surface-variant">Readers still see the approved version.</p><Button variant="secondary" size="sm" disabled={busy} onClick={cancelPending}>Cancel my change</Button></div>
+          )}
+          {me?.isOwner && me.updateReviewNote && <Notice kind="error" title="Your last change was not approved">{me.updateReviewNote}</Notice>}
+          {me?.allowedActions?.includes("edit") && <ButtonLink href={`/experience/${id}/edit`} variant="secondary" className="w-full"><Icon name="edit" className="!text-base" />Edit or update result</ButtonLink>}
+          {me?.allowedActions?.includes("withdraw") && <Button variant="danger" className="w-full" disabled={busy} onClick={() => visibility(false)}><Icon name="delete" className="!text-base" />Withdraw interview</Button>}
+          {me?.allowedActions?.includes("republish") && <Button className="w-full" disabled={busy} onClick={() => visibility(true)}>Send for review again</Button>}
         </div>
       )}
-      {reporting && (
-        <form onSubmit={sendReport} className="auth-form">
-          <label><span className="mono">What is wrong?</span>
-            <select value={reason} onChange={(e) => setReason(e.target.value as ReportReason)}>
-              {REPORT_REASONS.map((r) => <option key={r} value={r}>{REASON_LABEL[r]}</option>)}
-            </select>
-          </label>
-          <label><span className="mono">Details (optional)</span><input value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} /></label>
-          <div className="xbtns"><button className="btn btn-primary" disabled={busy}>Send report</button><button type="button" className="btn btn-ghost" onClick={() => setReporting(false)}>Cancel</button></div>
-        </form>
-      )}
-      {me?.allowedActions?.includes("cancel-update") && (
-        <div className="xstatus">
-          <span className="chip blue">Change waiting for review</span>
-          <p>Readers still see the approved version.</p>
-          <button className="btn btn-ghost small" disabled={busy} onClick={cancelPending}>Cancel my change</button>
+
+      {me && (
+        <div className={panel}>
+          <p className="font-semibold">{me.company.name}</p>
+          <p className="text-sm text-on-surface-variant">See what every round at {me.company.name} has asked, plus an AI prep guide written from the posts.</p>
+          <Link href={`/company/${me.company.slug}`} className="text-sm font-semibold text-primary hover:underline">View {me.company.name} prep guide →</Link>
         </div>
       )}
-      {me?.isOwner && me.updateReviewNote && <p className="rnote">Your last change was not approved: {me.updateReviewNote}</p>}
-      {me?.allowedActions?.includes("edit") && <Link className="btn btn-ghost" href={`/experience/${id}/edit`}>Edit or update result</Link>}
-      {(me?.allowedActions?.includes("withdraw") || me?.allowedActions?.includes("republish")) && (
-        <div className="xbtns">
-          {me?.allowedActions?.includes("withdraw") && <button className="btn btn-ghost" disabled={busy} onClick={() => visibility(false)}>Withdraw</button>}
-          {me?.allowedActions?.includes("republish") && <button className="btn btn-primary" disabled={busy} onClick={() => visibility(true)}>Send for review again</button>}
-        </div>
-      )}
-      {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "auth-ok" : "auth-error"}>{msg.text}</p>}
+      {msg && <Notice kind={msg.ok ? "success" : "error"}>{msg.text}</Notice>}
     </aside>
   );
 }

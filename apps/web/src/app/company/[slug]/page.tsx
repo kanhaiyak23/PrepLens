@@ -2,25 +2,23 @@ import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ExperienceCard as Card, Page } from "@preplens/shared";
-import { AppHeader } from "@/components/app/AppHeader";
+import { PageShell } from "@/components/app/PageShell";
 import { ExperienceCard } from "@/components/app/ExperienceCard";
 import { GuidePanel } from "@/components/app/GuidePanel";
+import { ButtonLink } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Notice } from "@/components/ui/Notice";
 import { ServerApiError, serverFetch } from "@/lib/serverApi";
 
 export const metadata: Metadata = { title: "Company · PrepLens" };
 
 export default function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
   return (
-    <>
-      <AppHeader />
-      <main id="top" className="app-page on-paper">
-        <div className="wrap">
-          <Suspense fallback={<p className="empty">Loading…</p>}>
-            <Body params={params} />
-          </Suspense>
-        </div>
-      </main>
-    </>
+    <PageShell width="max-w-6xl">
+      <Suspense fallback={<p className="text-on-surface-variant">Loading…</p>}>
+        <Body params={params} />
+      </Suspense>
+    </PageShell>
   );
 }
 
@@ -36,14 +34,14 @@ async function Body({ params }: { params: Promise<{ slug: string }> }) {
   const name = feed?.data[0]?.company.name ?? slug;
   return (
     <>
-      <p className="mono eyebrow"><Link href="/archive">Archive</Link> / Company</p>
-      <h1 className="display page-title">{name}</h1>
-      {problem && <p role="alert" className="auth-error">{problem}</p>}
+      <p className="text-sm mb-2"><Link href="/archive" className="text-primary font-medium hover:underline">Experiences</Link> <span className="text-on-surface-variant">/ Company</span></p>
+      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-8">{name}</h1>
+      {problem && <Notice kind="error">{problem}</Notice>}
       <div className="clayout">
-        <div>
-          {feed && feed.data.length === 0 && <div className="empty-state"><h2>No experiences yet.</h2><p>Nobody has shared an interview for this company yet.</p><Link className="btn btn-primary" href="/submit">Share yours</Link></div>}
-          {feed && feed.data.length > 0 && <ul className="xgrid one">{feed.data.map((x) => <ExperienceCard key={x.id} x={x} />)}</ul>}
-          {feed?.page.hasMore && <nav className="pager"><Link className="btn btn-ghost" href={`/archive?company=${encodeURIComponent(slug)}`}>See all in the archive</Link></nav>}
+        <div className="space-y-5">
+          {feed && feed.data.length === 0 && <EmptyState title="No experiences yet." action={<ButtonLink href="/submit">Share yours</ButtonLink>}>Nobody has shared an interview for this company yet.</EmptyState>}
+          {feed && feed.data.length > 0 && <ul className="grid grid-cols-1 gap-5 p-0 m-0">{feed.data.map((x) => <ExperienceCard key={x.id} x={x} />)}</ul>}
+          {feed?.page.hasMore && <ButtonLink variant="secondary" href={`/archive?company=${encodeURIComponent(slug)}`}>See all in the archive</ButtonLink>}
         </div>
         <GuidePanel slug={slug} />
       </div>

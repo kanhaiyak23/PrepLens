@@ -1,26 +1,22 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import type { ExperienceDetail } from "@preplens/shared";
-import { AppHeader } from "@/components/app/AppHeader";
+import { PageShell } from "@/components/app/PageShell";
 import { ExperienceView } from "@/components/app/ExperienceView";
 import { ExperienceActions } from "@/components/app/ExperienceActions";
 import { PrivateExperience } from "@/components/app/PrivateExperience";
+import { Notice } from "@/components/ui/Notice";
 import { ServerApiError, serverFetch } from "@/lib/serverApi";
 
 export const metadata: Metadata = { title: "Experience · PrepLens" };
 
 export default function ExperiencePage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <>
-      <AppHeader />
-      <main id="top" className="app-page on-paper">
-        <div className="wrap">
-          <Suspense fallback={<p className="empty">Loading…</p>}>
-            <Body params={params} />
-          </Suspense>
-        </div>
-      </main>
-    </>
+    <PageShell width="max-w-6xl">
+      <Suspense fallback={<p className="text-on-surface-variant">Loading…</p>}>
+        <Body params={params} />
+      </Suspense>
+    </PageShell>
   );
 }
 
@@ -37,7 +33,7 @@ async function Body({ params }: { params: Promise<{ id: string }> }) {
     else problem = e instanceof ServerApiError ? e.message : "Something went wrong.";
   }
   if (hidden) return <PrivateExperience id={id} />;
-  if (problem || !data) return <p role="alert" className="auth-error">{problem ?? "Something went wrong."}</p>;
+  if (problem || !data) return <Notice kind="error">{problem ?? "Something went wrong."}</Notice>;
   return (
     <div className="xlayout">
       <ExperienceView x={data} />
