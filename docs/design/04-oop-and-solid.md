@@ -36,7 +36,7 @@ Subtypes must be usable wherever the base is expected, without surprises.
 
 ### I: Interface Segregation
 Clients should not depend on methods they do not use.
-- Repositories are split by purpose: `ExperienceRepository` (read/write posts), `InteractionRepository` (votes, bookmarks), `ModerationLogRepository` (append only; it has **no** update or delete method, so misuse does not compile), `GuideRepository`.
+- Repositories are split by purpose: `ExperienceRepository` (read/write posts), `InteractionRepository` (votes, bookmarks), `ModerationLogRepository` (append only; it has **no** update or delete method, so misuse is impossible: there is nothing to call; a contract test checks every adapter against its port), `GuideRepository`.
 - `RateLimiter` has one method (`consume`). A service that only limits does not see storage details.
 - Read-only pages receive a `ExperienceReader` view of the repository, not the write methods.
 
@@ -54,4 +54,4 @@ High-level modules depend on abstractions; details depend on abstractions too.
 
 ## 4.4 Honest limits
 
-TypeScript in a Node/Express app still favours functions and modules. We use classes where state plus behaviour belong together (`Experience`, commands, errors, services) and plain functions for pure helpers (cursor encode/decode, fingerprinting). The diagrams in `03` list exactly the classes that will exist; anything not listed there is not a class.
+The API is plain JavaScript (ADR-27), and JavaScript with Express still favours functions and modules. We use classes where state plus behaviour belong together (`Experience`, commands, errors, services) and plain functions for pure helpers (cursor encode/decode, fingerprinting). The diagrams in `03` list exactly the classes that will exist; anything not listed there is not a class.

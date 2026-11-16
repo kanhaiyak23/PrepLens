@@ -25,8 +25,8 @@ apps/api/src/
   domain/            entities, commands, policies, interfaces, errors
   repositories/      Supabase implementations of domain interfaces
   infrastructure/    GeminiClient, FallbackLlmClient, PostgresRateLimiter
-  container.ts       composition root
-  app.ts, server.ts  Express app vs process start (so tests import app without listening)
+  container.js       composition root
+  app.js, server.js  Express app vs process start (so tests import app without listening)
 ```
 
 ## 7.2 Controller responsibilities (all controllers do exactly this)

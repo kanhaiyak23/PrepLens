@@ -3,13 +3,13 @@
 Format of every record: **Problem → Decision → Why (system design concept) → Rejected alternatives and trade-offs.**
 Status is `Proposed` until the owner approves; then `Accepted`. If a decision changes, do not delete it: mark it `Superseded by ADR-xx` and say what forced the change.
 
-Every decision below has a diagram. All other diagrams are in the root [`README.md`](../../README.md). Index: [ADR-01 Layers](#adr-01) · [02 Relational DB](#adr-02) · [03 Rounds as tables](#adr-03) · [04 RLS + server authz](#adr-04) · [05 Domain restriction in DB](#adr-05) · [06 Anonymity](#adr-06) · [07 Votes](#adr-07) · [08 Keyset pagination](#adr-08) · [09 Cache vs per-user state](#adr-09) · [10 Append-only log](#adr-10) · [11 Rate limiting](#adr-11) · [12 AI guide](#adr-12) · [13 Rendering](#adr-13) · [14 Atomic writes](#adr-14) · [15 Lifecycle state machine](#adr-15) · [16 Validation](#adr-16) · [17 Search](#adr-17) · [18 Consent](#adr-18) · [19 Error envelope](#adr-19) · [20 Scale ladder](#adr-20) · [21 Express API service](#adr-21) · [22 Authentication](#adr-22) · [23 User-scoped DB access](#adr-23) · [24 Monorepo + shared schemas](#adr-24)
+Every decision below has a diagram. All other diagrams are in the root [`README.md`](../../README.md). Index: [ADR-01 Layers](#adr-01) · [02 Relational DB](#adr-02) · [03 Rounds as tables](#adr-03) · [04 RLS + server authz](#adr-04) · [05 Domain restriction in DB](#adr-05) · [06 Anonymity](#adr-06) · [07 Votes](#adr-07) · [08 Keyset pagination](#adr-08) · [09 Cache vs per-user state](#adr-09) · [10 Append-only log](#adr-10) · [11 Rate limiting](#adr-11) · [12 AI guide](#adr-12) · [13 Rendering](#adr-13) · [14 Atomic writes](#adr-14) · [15 Lifecycle state machine](#adr-15) · [16 Validation](#adr-16) · [17 Search](#adr-17) · [18 Consent](#adr-18) · [19 Error envelope](#adr-19) · [20 Scale ladder](#adr-20) · [21 Express API service](#adr-21) · [22 Authentication](#adr-22) · [23 User-scoped DB access](#adr-23) · [24 Monorepo + shared schemas](#adr-24) · [25 Closed tables + functions](#adr-25) · [26 Test accounts](#adr-26) · [27 API in JavaScript](#adr-27) · [28 Stitch web UI](#adr-28)
 
 ---
 
 <a id="adr-01"></a>
 ## ADR-01 Layered architecture with ports and adapters
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Next.js makes it easy to put queries inside React components. Then rules (who may see what) are scattered, untestable and duplicated.
 - **Decision:** Four layers: Presentation (Next.js pages in `apps/web`; Express routes and controllers in `apps/api`), Application (services), Domain (entities, policies, interfaces), Infrastructure (Supabase repositories, Gemini client, rate limiter). Dependencies point inward; the domain imports nothing from Supabase, Express or Next. The layers live in the Express API (ADR-21).
 - **Why:** *Separation of concerns* and the *Dependency Inversion Principle*. A service can be tested with a fake repository and no database. Swapping Gemini or the database touches one adapter.
@@ -22,14 +22,14 @@ Every decision below has a diagram. All other diagrams are in the root [`README.
 flowchart LR
   PR["Presentation<br/>routes, controllers"] --> AP["Application<br/>services"] --> DM["Domain<br/>ports, model"]
   IN["Infrastructure<br/>Supabase, Gemini, Postgres"] -. implements .-> DM
-  CR["container.ts"] --> IN
+  CR["container.js"] --> IN
   CR --> AP
 ```
 
 
 <a id="adr-02"></a>
 ## ADR-02 Relational database (Postgres) instead of documents
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** The data is relational: users, companies, experiences, votes, reports, moderation, all with integrity rules ("one vote per user per experience", "a log row must name an admin").
 - **Decision:** Supabase Postgres with foreign keys, unique and check constraints.
 - **Why:** *Data integrity belongs in the database* (constraints cannot be raced or bypassed by a forgotten code path). Normalisation gives one source of truth for company names and author identity.
@@ -48,7 +48,7 @@ flowchart TB
 
 <a id="adr-03"></a>
 ## ADR-03 Rounds and questions as real tables
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** An experience has an ordered list of rounds, each with an ordered list of questions. Store as JSON on the experience, or as rows?
 - **Decision:** `interview_rounds(experience_id, position)` and `questions(round_id, position)` as tables with a unique `(parent_id, position)`.
 - **Why:** *Normalisation* and *queryability*. "Which topics does Google ask?" becomes a query on `questions.topic`, which the AI guide and company stats need. Composition is explicit in the class diagram (round cannot exist without its experience, `ON DELETE CASCADE`).
@@ -78,7 +78,7 @@ erDiagram
 
 <a id="adr-04"></a>
 ## ADR-04 Row Level Security plus server-side authorisation (defence in depth)
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** The Supabase anon key is public by design. Anyone can call the database API directly, bypassing our UI and our services.
 - **Decision:** RLS enabled on every table as the **last line of defence**; our services also authorise every action on the server. The service-role key is used only in server code for narrowly scoped operations and never reaches the browser.
 - **Why:** *Defence in depth* and *least privilege*. A bug in one layer must not become a data leak. Never trust identity or role from the client: the user id comes from the verified session (`auth.uid()`), the role from the database.
@@ -97,7 +97,7 @@ flowchart LR
 
 <a id="adr-05"></a>
 ## ADR-05 Enforce the college email domain in the database
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** A frontend check is trivially bypassed.
 - **Decision:** Reject any signup whose email domain is not exactly `nst.rishihood.edu.in`, at the auth boundary (a trigger on `auth.users` or a Supabase "before user created" hook; confirm which at Phase 2). Compare the part after the last `@`, case-insensitively.
 - **Why:** *Trust boundary*: validate where untrusted input becomes trusted state. Exact comparison blocks lookalikes such as `x@nst.rishihood.edu.in.evil.com` and `nst.rishihood.edu.in@gmail.com`.
@@ -121,7 +121,7 @@ sequenceDiagram
 
 <a id="adr-06"></a>
 ## ADR-06 Anonymity enforced by the data shape, not the UI
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** "Anonymous · 2027 · CSE" can identify someone in a batch of 60 (a *k-anonymity* failure). Hiding the name in CSS while the API still returns it is not anonymity.
 - **Decision:** Public reads go through a public view/function that omits author identity columns, and through `AuthorVisibility` objects in the domain (`IdentifiedAuthor`, `AnonymousAuthor`, `AdminPostedAuthor`) that decide what may be serialised. Anonymous shows batch only, never branch. Author batch and branch are snapshotted on the experience at submit time.
 - **Why:** *Privacy by design* and *data minimisation*: the safest field is one that never leaves the server. The snapshot keeps "written by a 2027 student" true even if the profile changes later.
@@ -142,7 +142,7 @@ flowchart LR
 
 <a id="adr-07"></a>
 ## ADR-07 Votes and bookmarks as rows with a unique constraint
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** "Look up whether they voted, then insert" is a race: two concurrent taps both see "no vote" and both insert.
 - **Decision:** `votes(user_id, experience_id)` with a composite primary key; vote = `INSERT ... ON CONFLICT DO NOTHING`; unvote = `DELETE`. `experiences.upvote_count` is a denormalised counter maintained by a trigger.
 - **Why:** *Idempotency* and *constraint over check*: uniqueness is enforced where the write lands. The counter is *denormalisation for reads* (sorting by votes needs no aggregate), with a reconciliation query to detect drift.
@@ -165,7 +165,7 @@ sequenceDiagram
 
 <a id="adr-08"></a>
 ## ADR-08 Keyset (cursor) pagination
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Offset pagination re-scans skipped rows and shows duplicates when rows are inserted between pages.
 - **Decision:** Cursor encodes the last row's `(created_at, id)`; query uses `WHERE (created_at, id) < ($1, $2) ORDER BY created_at DESC, id DESC LIMIT n+1`. The extra row answers `hasMore`. Matching composite index.
 - **Why:** *Stable, O(page) pagination*; the `id` tiebreak makes order total when two rows share a timestamp.
@@ -191,7 +191,7 @@ sequenceDiagram
 
 <a id="adr-09"></a>
 ## ADR-09 Split cacheable public data from per-user state
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** If a cached feed response contains "you have upvoted this", one user's state is served to others.
 - **Decision:** Public pages and public read APIs are identical for every caller and cacheable (time-based revalidation plus on-demand tag revalidation when content changes). Per-user state (voted, bookmarked) arrives in a separate non-cached request.
 - **Why:** *Cache correctness*: a cacheable response must be a pure function of its URL. Splitting gives the speed of a CDN for the 99% case.
@@ -217,7 +217,7 @@ flowchart LR
 
 <a id="adr-10"></a>
 ## ADR-10 Append-only moderation log
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** A `resolved_by` column holds one answer; the next action overwrites the last. You will need to explain a removal one day.
 - **Decision:** `moderation_logs` rows are inserted only. RLS grants no UPDATE or DELETE, and a trigger raises an error on either. Company name and role are copied into the row; the post's author is deliberately not.
 - **Why:** *Audit trail / immutability* and *event sourcing lite*: history is facts, not state. Copying fields makes the row meaningful after the post is deleted.
@@ -237,7 +237,7 @@ flowchart LR
 
 <a id="adr-11"></a>
 ## ADR-11 Rate limiting stored in Postgres, keyed by user
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Serverless functions have no shared memory, so in-process limiters reset per instance. IP limits ban a whole campus behind one NAT address.
 - **Decision:** A `rate_limits` table and an atomic `check_rate_limit(user, action, limit, window)` function. Limits: submissions 5/day, reports 10/day, votes and bookmarks 60/min, AI guide 20/10 min per user (and a looser per-IP limit for signed-out readers).
 - **Why:** *Shared state in a stateless tier*, *fairness* (key on the identity being limited), *abuse protection*. A fixed window allows a 2x burst at the boundary; acceptable here and stated.
@@ -259,7 +259,7 @@ sequenceDiagram
 
 <a id="adr-12"></a>
 ## ADR-12 AI guide: grounded, cached, and degradable
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** LLM output can hallucinate, quota is limited, and calls are slow.
 - **Decision:** Gemini is called server-side with a structured response schema. Every round and tip must cite source experiences by number; citations that do not match a real source are dropped. Counts and top topics are computed in code, never generated. The guide is cached per company with a `fingerprint` (hash of source ids and update times); a changed fingerprint means stale. A `LlmClient` interface lets a decorator add model fallback and timeouts.
 - **Why:** *Grounding* (RAG-style) for trust; *cache invalidation by content hash* (no hook in the write path has to remember to invalidate); *graceful degradation* (the archive still works when Gemini is down) and *Decorator* for cross-cutting retries.
@@ -286,7 +286,7 @@ flowchart TD
 
 <a id="adr-13"></a>
 ## ADR-13 Server Components by default for the UI
-**Status:** Proposed. **Partly superseded by ADR-21:** mutations are now Express API calls, not Server Actions.
+**Status:** Accepted. **Partly superseded by ADR-21:** mutations are now Express API calls, not Server Actions.
 - **Problem:** Client-side fetching delays first paint and hurts search indexing of public pages.
 - **Decision:** Data-heavy pages are Server Components fetching from the Express API. Client Components only for interactivity (filters, forms, vote button, animations). Data comes from the Express API (ADR-21): Server Components call it with the viewer's token; client components call it for mutations and load-more.
 - **Why:** *Move work to the server*, smaller client bundle, one trust boundary. Public content is SEO-indexable.
@@ -306,7 +306,7 @@ flowchart LR
 
 <a id="adr-14"></a>
 ## ADR-14 Multi-step writes as atomic Postgres functions
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Submitting an experience writes an experience, rounds, questions and possibly a pending company. `supabase-js` has no multi-statement transaction; a failure midway leaves a half-written post.
 - **Decision:** Such writes are Postgres functions called through `rpc`, running in one transaction, with the caller's identity from `auth.uid()`.
 - **Why:** *ACID transactions* and *atomicity*: all or nothing. Also keeps author identity server-derived.
@@ -335,7 +335,7 @@ sequenceDiagram
 
 <a id="adr-15"></a>
 ## ADR-15 Experience lifecycle as an explicit state machine
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Boolean flags (`is_approved`, `is_deleted`) allow impossible combinations.
 - **Decision:** `status` enum: `pending`, `published`, `rejected`, `unpublished`, `removed`. Legal transitions are encoded in the domain (`Experience.publish()`, `.unpublish()` and so on) and checked in the database. Nothing is hard-deleted by an admin. A live edit is stored beside the live content as a pending update, so readers keep seeing the approved version.
 - **Why:** *State pattern / finite state machine*: make illegal states unrepresentable. *Soft delete* keeps the audit trail intact.
@@ -360,7 +360,7 @@ stateDiagram-v2
 
 <a id="adr-16"></a>
 ## ADR-16 Validate with Zod at every boundary, and again in the database
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Input arrives from forms, URLs, cursors and external LLM output; all untrusted.
 - **Decision:** A Zod schema per operation parses input into typed DTOs before any service runs; LLM output is parsed the same way. The database repeats the critical rules as CHECK constraints.
 - **Why:** *Fail fast* and *parse, don't validate*: after parsing, the rest of the code deals only with valid types. Two layers because the DB must also survive direct API calls (ADR-04).
@@ -377,7 +377,7 @@ flowchart LR
 
 <a id="adr-17"></a>
 ## ADR-17 Search with Postgres full-text search
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Users search question text, tips, role and company.
 - **Decision:** A generated `tsvector` column with weights (question text highest, then company, role, tips) and a GIN index; `websearch_to_tsquery` for input.
 - **Why:** *Use the database you already run* and *choose by scale*: hundreds to thousands of rows do not justify a search cluster. Weighted ranking reflects "a real question matters more than a tip".
@@ -398,7 +398,7 @@ flowchart LR
 
 <a id="adr-18"></a>
 ## ADR-18 Consent is data, enforced by a constraint
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Publishing a person's rejection story on a Google-indexable URL needs explicit consent. A form checkbox alone is a convention, not a guarantee.
 - **Decision:** `consented_at timestamptz` on the experience; `CHECK (status <> 'published' OR consented_at IS NOT NULL)`. The consent sentence sits directly above the submit button.
 - **Why:** *Make invariants structural*: no code path (script, migration, future developer) can publish without consent.
@@ -418,7 +418,7 @@ flowchart TD
 
 <a id="adr-19"></a>
 ## ADR-19 One error envelope with a request id
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Scattered ad hoc error shapes make clients and debugging brittle.
 - **Decision:** Domain errors extend `AppError` with a stable `code`, HTTP status and optional per-field errors. One mapper converts any thrown error into `{ error: { code, message, fields? }, requestId }`. Unknown errors become a generic 500 with the detail logged, not returned.
 - **Why:** *Consistent contract* and *observability*: a user quotes the `requestId` and you find the exact log line. Not leaking internals is a security requirement.
@@ -440,7 +440,7 @@ flowchart LR
 
 <a id="adr-20"></a>
 ## ADR-20 Build for current scale; document the ladder
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** Over-engineering for traffic that will not exist wastes the time budget.
 - **Decision:** Ship the simple version now with named triggers for the next step.
 
@@ -463,7 +463,7 @@ flowchart LR
 
 <a id="adr-21"></a>
 ## ADR-21 A separate Node.js + Express API owns all business logic
-**Status:** Proposed (added on owner request)
+**Status:** Accepted (added on owner request)
 - **Problem:** The capstone is graded on controller / service / repository separation, SOLID and a defined API. We also need one place for business rules, rate limits and the Gemini key, independent of the UI framework.
 - **Decision:** `apps/api` is an Express application written in TypeScript, exposing a versioned REST API (`/api/v1`). `apps/web` (Next.js) is a presentation client of that API only; it holds no business rules and no service-role key. Supabase is used as managed Postgres, Auth and RLS behind the API. Express middleware chain: request id, security headers, CORS (explicit origin), body-size limit, authentication, rate limit, Zod validation, route, central error handler.
 - **Why:** *Separation of concerns* and a *single backend as the system of record for rules* (the web app can be replaced or a mobile client added without re-implementing rules). It makes the layered diagram literal: route, controller, service, repository are real folders. *Least privilege:* only the API holds secrets (Gemini key, service-role key).
@@ -482,7 +482,7 @@ flowchart LR
 
 <a id="adr-22"></a>
 ## ADR-22 Authentication: Supabase issues the token, the API verifies it
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** The API must know who is calling without trusting anything the client states, and a cross-origin cookie session between two sites is fragile.
 - **Decision:** Google sign-in happens through Supabase Auth in the web app. The browser holds the Supabase session; each API call carries `Authorization: Bearer <access token>`. An `authenticate` middleware verifies the token signature and expiry (via the project's JWKS, or `auth.getUser` as a fallback), then loads the profile (role) from the database. Public routes use `optionalAuth`. Role checks use `requireRole('admin')`. The user id and role are never read from the request body.
 - **Why:** *Stateless authentication* and *trust boundary*: the signature is the proof, role comes from the database. Bearer tokens avoid `SameSite=None` cross-site cookies and CSRF exposure, because the browser does not attach them automatically.
@@ -508,7 +508,7 @@ sequenceDiagram
 
 <a id="adr-23"></a>
 ## ADR-23 User-scoped database access by default; service role only for named system tasks
-**Status:** Proposed
+**Status:** Accepted
 - **Problem:** If the Express API always uses the service-role key, it bypasses RLS and every authorisation bug becomes a data leak (ADR-04 loses its safety net).
 - **Decision:** Repositories receive a Supabase client created per request with the caller's access token, so Postgres evaluates RLS as that user. A separate service-role client exists only in the infrastructure layer and only for operations that must exceed a user's rights: the rate limiter, the AI-guide cache, appending moderation logs inside moderation functions, and scheduled maintenance. Each use is listed in `docs/design/08-database-schema.md`.
 - **Why:** *Least privilege* and *defence in depth*: an application bug stays bounded by RLS. The service-role key is a master key; its use is an audited, short list.
@@ -529,7 +529,7 @@ flowchart LR
 
 <a id="adr-24"></a>
 ## ADR-24 Monorepo with one shared contract package
-**Status:** Proposed (ASSUMPTION: npm workspaces; confirm tooling at setup)
+**Status:** Accepted (ASSUMPTION: npm workspaces; confirm tooling at setup)
 - **Problem:** The web app and API must agree on request and response shapes, enums and error codes, or they drift.
 - **Decision:** `packages/shared` holds Zod schemas, enums, DTO types and error codes. The API validates with them; the web app uses the same inferred types for forms and responses.
 - **Why:** *Single source of truth* for the contract (DRY) and compile-time detection of drift.

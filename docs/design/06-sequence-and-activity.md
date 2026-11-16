@@ -35,40 +35,41 @@ sequenceDiagram
 
 ## 6.2 Submit an experience (UC-06, ADR-14, ADR-16, ADR-11, ADR-18)
 
+As built, the order is the middleware chain in `routes/index.js`: authenticate, rate limit, validate, controller. The rate limiter is middleware, not a service call.
+
 ```mermaid
 sequenceDiagram
     actor U as Student
-    participant C as Express route + controller
-    participant Z as Zod schema
+    participant MW as Middleware chain
+    participant L as RateLimiter (Postgres)
+    participant Z as Zod submissionSchema
+    participant CT as ExperienceController
     participant SV as SubmissionService
-    participant L as RateLimiter
     participant F as SubmissionFactory
-    participant R as ExperienceRepository
+    participant R as ExperienceWriter (Supabase)
     participant DB as Postgres
 
-    U->>C: POST /api/v1/experiences (bearer token)
-    C->>C: authenticate middleware verifies bearer token (user id from token, never from body)
-    C->>Z: parse(form)
-    alt invalid
-        Z-->>C: field errors
-        C-->>U: ValidationError (fields)
-    else valid
-        C->>SV: submit(dto, author)
-        SV->>L: consume(userId, "submit")
-        alt over limit (5/day)
-            L-->>SV: denied
-            SV-->>U: RateLimitedError
-        else allowed
+    U->>MW: POST /api/v1/experiences (bearer token)
+    MW->>MW: authenticate: user id from token, role from DB, never from body
+    MW->>L: consume(u:userId, "submit", 5, 1 day)
+    alt over limit
+        L-->>U: 429 RateLimitedError
+    else allowed
+        MW->>Z: parse(body)
+        alt invalid
+            Z-->>U: 400 ValidationError (fields)
+        else valid
+            MW->>CT: submit(req.valid.body)
+            CT->>SV: submit(dto)
             SV->>F: create(dto)
-            F-->>SV: QuickSubmission | DetailedSubmission
-            SV->>SV: toExperience(author) (snapshot batch, branch; set consent)
-            SV->>R: save(experience)
-            R->>DB: rpc submit_experience(...) in ONE transaction
-            Note over DB: resolve company by slug/alias, else create pending<br/>insert experience, rounds, questions<br/>CHECK consent, status = pending
+            F-->>SV: QuickSubmission or DetailedSubmission
+            SV->>SV: toPayload() (Template Method: validate, normalise rounds, consent true)
+            SV->>R: submit(payload)
+            R->>DB: rpc submit_experience in ONE transaction
+            Note over DB: resolve company by slug or alias, else create pending<br/>insert experience, rounds, questions<br/>snapshot author batch and branch<br/>CHECK consent, status = pending
             DB-->>R: id
-            R-->>SV: id
-            SV-->>C: SubmitResult(id, status=pending)
-            C-->>U: Success screen
+            R-->>CT: id
+            CT-->>U: 201 { id, status: pending }
         end
     end
 ```
@@ -244,4 +245,33 @@ stateDiagram-v2
     published --> published: approved update replaces content
 ```
 
-Transition rules live in `Experience` methods and are repeated as a database CHECK on allowed transitions where practical. The diagram and the code must match: any new transition is added here first.
+Transition rules are enforced by the database trigger `guard_experience` and described in code by `ExperienceLifecycle` (`TRANSITIONS`); a test compares the two. The diagram and the code must match: any new transition is added here first.
+
+
+## 6.9 Edit a live post (UC-07, FR-24, ADR-15, ADR-25)
+
+A live post is never changed in place. The edit becomes a pending update; readers keep seeing the approved version until an admin decides.
+
+```mermaid
+sequenceDiagram
+    actor A as Author
+    actor M as Admin
+    participant API as Express (PATCH /experiences/:id)
+    participant SV as UpdateService
+    participant DB as Postgres functions
+
+    A->>API: PATCH changes (edit limit 20/hour)
+    API->>SV: update(id, changes)
+    SV->>DB: rpc update_experience
+    alt post is published
+        DB-->>SV: queued (stored in pending_update)
+        SV-->>A: 202 queued, readers still see the old version
+    else not live
+        DB-->>SV: applied
+        SV-->>A: 200 applied
+    end
+    M->>API: POST /admin/experiences/:id/update/approve
+    API->>DB: swap content, re-index search, write moderation log (one transaction)
+    DB-->>M: done
+    Note over M,DB: reject needs a note; a second edit replaces the first pending one
+```
