@@ -28,9 +28,9 @@ export class ExperienceService {
         if (!found)
             throw new NotFoundError("Experience not found.");
         // The privileged view (author or admin) also says what they may do next, from the lifecycle state machine.
-        if (found.status) {
-            found.allowedActions = ExperienceLifecycle.actionsFor({ status: found.status, isOwner: Boolean(found.isOwner), isAdmin: isAdmin(this.viewer), hasPendingUpdate: Boolean(found.pendingUpdate) });
-        }
-        return found;
+        // A new object is returned; the reader's result is not modified.
+        if (!found.status)
+            return found;
+        return { ...found, allowedActions: ExperienceLifecycle.actionsFor({ status: found.status, isOwner: Boolean(found.isOwner), isAdmin: isAdmin(this.viewer), hasPendingUpdate: Boolean(found.pendingUpdate) }) };
     }
 }

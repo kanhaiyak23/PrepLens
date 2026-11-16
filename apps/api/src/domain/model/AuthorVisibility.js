@@ -2,6 +2,7 @@
  * Polymorphism instead of an if/else on a flag. The database already decides what to return (ADR-06); this is the API's own
  * output gate: whatever shape arrives, an anonymous author can only ever serialise to `{ anonymous, batch }`.
  */
+//runtime polymorphism  both have same method toPublic()
 export class AuthorVisibility {
 }
 export class AnonymousAuthor extends AuthorVisibility {

@@ -3,6 +3,8 @@
  * Design source: Stitch "Experiences Archive" (Selected = emerald, In process = blue, Rejected = red, Withdrew = gray)
  * and "My Posts" (Published = green, Waiting for review = amber, Not approved = red, Withdrawn = gray).
  */
+
+// open closed principle
 export type Tone = "success" | "info" | "danger" | "neutral" | "warning" | "primary";
 const TONE: Record<Tone, string> = {
   success: "text-emerald-800 bg-emerald-50",

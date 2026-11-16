@@ -42,6 +42,7 @@ export class DetailedSubmission extends Submission {
         if (total > 120)
             throw new ValidationError("That is too many questions in one experience.", { rounds: "too many questions" });
     }
+    //runtime polymorphism
     normaliseRounds() {
         return this.dto.rounds.map((r) => ({
             name: r.name,
@@ -51,6 +52,7 @@ export class DetailedSubmission extends Submission {
     }
 }
 /** Factory: callers never say which class applies. */
+//it decide which object to create
 export const SubmissionFactory = {
     create(dto) {
         return dto.mode === "quick" ? new QuickSubmission(dto) : new DetailedSubmission(dto);

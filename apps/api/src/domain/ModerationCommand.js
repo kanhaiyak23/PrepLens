@@ -28,13 +28,14 @@ export class RejectCommand extends Base {
         super(id, note.trim());
     }
 }
+//Factory 
+/** Lookup table instead of a switch (Open/Closed): a new decision is one class and one entry here. */
+const COMMANDS = { approve: ApproveCommand, reject: RejectCommand, remove: RemoveCommand, reinstate: ReinstateCommand };
 export const ModerationCommandFactory = {
     create(action, id, note) {
-        switch (action) {
-            case "approve": return new ApproveCommand(id);
-            case "reject": return new RejectCommand(id, note);
-            case "remove": return new RemoveCommand(id);
-            case "reinstate": return new ReinstateCommand(id);
-        }
+        const Command = COMMANDS[action];
+        if (!Command)
+            throw new ValidationError("Unknown moderation action.", { action: "invalid" });
+        return new Command(id, note);
     },
 };
