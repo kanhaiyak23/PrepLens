@@ -5,9 +5,9 @@ import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { safeNext } from "@/lib/safeNext";
-import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { GoogleButton } from "./GoogleButton";
+import { PrepLensMark } from "@/components/brand/Brand";
 
 /** Design source: Stitch "Sign in - PrepLens": centred white card, lock tile, title, red "Access restricted" box, Google button, "Browse the archive" link. */
 export function SignInCard() {
@@ -22,12 +22,12 @@ export function SignInCard() {
   }, [loading, user, next, router]);
 
   return (
-    <div className="w-full max-w-md bg-surface-container-lowest rounded-2xl shadow-md p-8 sm:p-10 text-center">
-      <div className="w-14 h-14 mx-auto mb-6 rounded-xl bg-primary-fixed text-primary flex items-center justify-center"><Icon name="lock_open" className="!text-3xl" /></div>
-      <h1 className="text-3xl font-bold tracking-tight mb-3">Sign in</h1>
+    <div className="w-full max-w-md bg-surface-container-lowest rounded-3xl shadow-lg border border-outline-variant/70 p-8 sm:p-10 text-center animate-rise">
+      <PrepLensMark className="w-12 h-14 mx-auto mb-6" />
+      <h1 className="text-4xl mb-3">Sign in to PrepLens</h1>
       <p className="text-on-surface-variant mb-6">Share your interview, save experiences for later and manage your posts.</p>
       {error && <div className="text-left mb-6"><Notice kind="error" title="Access restricted">{error}</Notice></div>}
-      <GoogleButton next={next} className="w-full inline-flex items-center justify-center gap-3 bg-surface-container-low hover:bg-surface-container text-on-surface font-medium rounded-lg px-5 py-3 cursor-pointer" />
+      <GoogleButton next={next} className="w-full inline-flex items-center justify-center gap-3 bg-surface-container-lowest border border-outline-variant hover:border-primary/40 hover:shadow-md text-on-surface font-semibold rounded-full px-5 py-3.5 cursor-pointer transition-all" />
       <p className="text-sm text-on-surface-variant mt-4">Only <b className="font-medium text-on-surface">@nst.rishihood.edu.in</b> accounts can sign in. Reading never needs an account.</p>
       <div className="mt-8 pt-6 border-t border-surface-variant text-sm">
         <p className="text-on-surface-variant mb-2">Just looking to read experiences?</p>

@@ -60,7 +60,7 @@ async function Results({ searchParams }: { searchParams: Search }) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mr-1">Active filters</span>
           {pills.map((p) => (
-            <Link key={p.label} href={`/archive?${toQuery(p.remove as Record<string, string | undefined>)}`} className="inline-flex items-center gap-1.5 bg-primary-fixed text-on-primary-fixed px-2.5 py-1 rounded-full text-xs font-medium" aria-label={`Remove filter ${p.label}`}>
+            <Link key={p.label} href={`/archive?${toQuery(p.remove as Record<string, string | undefined>)}`} className="inline-flex items-center gap-1.5 bg-primary-fixed text-on-primary-fixed ring-1 ring-inset ring-primary/15 px-3 py-1 rounded-full text-xs font-semibold hover:bg-primary-fixed-dim transition-colors" aria-label={`Remove filter ${p.label}`}>
               {p.label}<Icon name="close" className="!text-sm" />
             </Link>
           ))}

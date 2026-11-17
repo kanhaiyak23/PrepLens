@@ -34,8 +34,14 @@ async function Body({ params }: { params: Promise<{ slug: string }> }) {
   const name = feed?.data[0]?.company.name ?? slug;
   return (
     <>
-      <p className="text-sm mb-2"><Link href="/archive" className="text-primary font-medium hover:underline">Experiences</Link> <span className="text-on-surface-variant">/ Company</span></p>
-      <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-8">{name}</h1>
+      <div className="flex items-center gap-5 mb-10 animate-rise">
+        <span aria-hidden="true" className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-3xl bg-gradient-to-br from-maroon to-primary text-white flex items-center justify-center font-display text-4xl font-semibold shadow-lg">{name.charAt(0).toUpperCase()}</span>
+        <div className="min-w-0">
+          <p className="text-sm mb-1.5"><Link href="/archive" className="text-on-surface-variant font-medium hover:text-primary transition-colors">Experiences</Link> <span className="text-outline">/</span> <span className="text-primary font-semibold">Company</span></p>
+          <h1 className="text-4xl sm:text-5xl leading-[1.05] truncate">{name}</h1>
+          {feed && feed.data.length > 0 && <p className="text-sm text-on-surface-variant mt-1.5">{feed.data.length}{feed.page.hasMore ? "+" : ""} published {feed.data.length === 1 && !feed.page.hasMore ? "experience" : "experiences"}</p>}
+        </div>
+      </div>
       {problem && <Notice kind="error">{problem}</Notice>}
       <div className="clayout">
         <div className="space-y-5">

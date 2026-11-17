@@ -2,7 +2,7 @@ import { Icon } from "./Icon";
 
 /** Inline message. Design source: Stitch "Sign in" (red access-restricted box), "Profile"/"My Posts" (lilac info strip), "Share Your Interview" (top banner). */
 const KIND = {
-  info: { box: "bg-surface-container-low text-on-surface", icon: "info", iconColor: "text-primary" },
+  info: { box: "bg-surface-container-low text-on-surface border border-outline-variant/70", icon: "info", iconColor: "text-primary" },
   error: { box: "bg-error-container text-on-error-container", icon: "error", iconColor: "text-on-error-container" },
   success: { box: "bg-emerald-50 text-emerald-900", icon: "check_circle", iconColor: "text-emerald-700" },
 } as const;

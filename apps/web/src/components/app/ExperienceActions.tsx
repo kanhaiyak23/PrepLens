@@ -89,15 +89,15 @@ export function ExperienceActions({ id, initialUpvotes }: { id: string; initialU
     } catch (e) { say(e); } finally { setBusy(false); }
   }
 
-  const panel = "bg-surface-container-lowest border border-surface-variant rounded-xl p-5 space-y-3";
+  const panel = "bg-surface-container-lowest border border-outline-variant/80 rounded-3xl p-6 shadow-md space-y-4";
 
   if (loading) return <aside className="space-y-4" aria-busy="true" />;
 
   if (!token) {
     return (
-      <aside className="space-y-4">
+      <aside className="space-y-4 lg:sticky lg:top-24">
         <div className={panel}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Community actions</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Community actions</p>
           <p className="text-sm text-on-surface-variant">Find this useful? Sign in to mark it helpful, save it, or report a problem.</p>
           <ButtonLink href={`/signin?next=/experience/${id}`} className="w-full">Sign in with Google</ButtonLink>
         </div>
@@ -107,10 +107,10 @@ export function ExperienceActions({ id, initialUpvotes }: { id: string; initialU
 
   const canReact = !me?.status || me.status === "published";
   return (
-    <aside className="space-y-4">
+    <aside className="space-y-4 lg:sticky lg:top-24">
       {canReact && (
         <div className={panel}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Community actions</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">Community actions</p>
           <div className="grid grid-cols-2 gap-3">
             <Button variant={voted ? "primary" : "secondary"} aria-pressed={voted} disabled={busy} onClick={toggleVote}><Icon name="thumb_up" className="!text-base" />Helpful ({votes})</Button>
             <Button variant={saved ? "primary" : "secondary"} aria-pressed={saved} disabled={busy} onClick={toggleBookmark}><Icon name="bookmark" className="!text-base" />{saved ? "Saved" : "Save"}</Button>
