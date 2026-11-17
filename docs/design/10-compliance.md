@@ -9,18 +9,18 @@ Legend: **Yes** = built and evidenced. **Partly** = built, with a stated gap. **
 
 | ADR | Rule | Status | Evidence / gap |
 |---|---|---|---|
-| 01 Layers and ports | Controller, service, domain, infrastructure; domain imports nothing outward | **Yes** | Audit grep: `services/` and `controllers/` import no Supabase, Express or infrastructure. **Violation found and fixed**: `domain/context.js` imported services; moved to `src/context.js` |
+| 01 Layers and ports | Controller, service, domain, infrastructure; domain imports nothing outward | **Yes** | Audit grep: `services/` and `controllers/` import no Supabase, Express or infrastructure. **Violation found and fixed**: `domain/context.ts` imported services; moved to `src/context.ts` |
 | 02 Relational DB | Integrity in the database | **Yes** | FKs, CHECKs, unique keys in migrations 0001 to 0008 |
 | 03 Rounds as tables | `interview_rounds`, `questions` with `(parent, position)` unique | **Yes** | `0001_schema.sql` |
 | 04 RLS plus server authz | Defence in depth | **Yes** | Tables closed to anon and authenticated (`supabase/tests/001_rules.sql` §10). Admin checked at route, service and DB for moderation and company admin |
 | 05 Domain rule in DB | Exact `@nst.rishihood.edu.in` | **Yes** | `001_rules.sql` §1: gmail, `…edu.in.evil.com` and `nst…edu.in@gmail.com` rejected. Real Google sign-in verified with the admin account |
-| 06 Anonymity by data shape | Public payload has batch only | **Yes** | `001_rules.sql` §6; `units.test.js` mapper test; `guide.test.js` sources test; verified in the browser as a visitor |
+| 06 Anonymity by data shape | Public payload has batch only | **Yes** | `001_rules.sql` §6; `units.test.ts` mapper test; `guide.test.ts` sources test; verified in the browser as a visitor |
 | 07 Votes by constraint | PK is the rule | **Yes** | `001_rules.sql` §7; API test "double PUT leaves one vote"; UI check count 1, 0, 1 |
 | 08 Keyset pagination | `(created_at, id)` cursor | **Yes** | API test walks pages with no repeat or skip; `003_query_plans.sql` |
 | 09 Public cache vs per-user state | Cacheable responses identical for all | **Yes** | Header tests: list public, detail `private, no-store` when a token is sent, interactions `no-store`, guide public |
 | 10 Append-only log | No UPDATE or DELETE | **Yes** | `001_rules.sql` §8. Only FK null-out is allowed, so deleting a post keeps its log rows |
 | 11 Postgres rate limit by user | 5 submit/day, 10 report/day, 60 interact/min, guide 20 user and 200 visitor per 10 min | **Yes** | API tests per route; `001_rules.sql` §9 (5 of 7 allowed). Gap: public GET list and detail are not limited (only the guide is) |
-| 12 AI guide | Grounded, cached, degradable | **Yes (unit and live)** | `guide.test.js` plus a live run against Gemini (`gemini-2.5-flash`, about 6.5 s first call, cached call skips the model): citations map to real posts, changing a post regenerates, with the model down a stale guide is served only while every cited post is still published and a withdrawn cited post makes it 503, vendor error text never reaches a client. Found and fixed during the live run: the Gemini message "API key not valid" was being returned to clients, and a retired model id (404) did not fall back |
+| 12 AI guide | Grounded, cached, degradable | **Yes (unit and live)** | `guide.test.ts` plus a live run against Gemini (`gemini-2.5-flash`, about 6.5 s first call, cached call skips the model): citations map to real posts, changing a post regenerates, with the model down a stale guide is served only while every cited post is still published and a withdrawn cited post makes it 503, vendor error text never reaches a client. Found and fixed during the live run: the Gemini message "API key not valid" was being returned to clients, and a retired model id (404) did not fall back |
 | 13 Server Components default | Server render public pages | **Yes** | `/archive`, `/experience/[id]`, `/company/[slug]` render on the server; client components only for interaction |
 | 14 Atomic writes | One transaction per write | **Yes** | `submit_experience`, moderation, company merge are single DB functions |
 | 15 Status as a state machine | Legal transitions enforced | **Yes** | Enforced in the database trigger (`guard_experience`); described in TypeScript by `ExperienceLifecycle` (`TRANSITIONS`, `canMove`, `actionsFor`), which also drives the buttons on the experience page; a test reads the SQL and fails if the two tables differ. An edit to a live post is a queued proposal, never an in-place change (`supabase/tests/004`). **No TypeScript `Experience` entity** with `publish()`/`remove()` methods as drawn in `03`; see 10.3 |
@@ -31,9 +31,12 @@ Legend: **Yes** = built and evidenced. **Partly** = built, with a stated gap. **
 | 20 Scale ladder | Documented triggers | **Yes** | In `02`; nothing built beyond need |
 | 21 Express API owns rules | Next.js is presentation only | **Yes** | `apps/web` has no business rules and no service-role key |
 | 22 Bearer-token auth | Verify token, role from DB | **Yes** | Tests: invalid or malformed token is 401 (never a silent visitor); client `x-user-id` and `x-role` ignored |
-| 23 User-scoped DB by default | Service role only for a short list | **Yes** | Audit grep: `createServiceClient` is used only in `container.js`, for the rate limiter and the guide cache (both on the allowed list in `08` §8.6) |
+| 23 User-scoped DB by default | Service role only for a short list | **Yes** | Audit grep: `createServiceClient` is used only in `container.ts`, for the rate limiter and the guide cache (both on the allowed list in `08` §8.6) |
 | 24 Monorepo with shared schemas | One contract | **Yes** | `packages/shared` used by API and web |
 | 25 Functions, tables closed | Security-definer functions | **Yes** | Advisor shows only the intended functions |
+| 30 API in TypeScript | Ports are interfaces, adapters `implements` them, strict mode | **Yes** | `npm run typecheck` clean; same 116 tests passed before the admin-roles feature was added; compiled `dist/server.js` served live Supabase data |
+| 31 Admins manage admins | Admin only at route, service and DB; no self-removal; never zero admins; serialised; logged | **Yes in code; DB not yet applied** | `admins.test.ts` (14 tests: success, validation, 401, 403, 404, 409, 429, self-removal, service refuses even with a permissive writer); `supabase/tests/007_admin_roles.sql` written, runs once `0013` is applied. **Gap:** the two-admins race needs two live sessions and has not been fired yet |
+| 32 CI/CD | Every PR typechecked, tested and built; deploy only from green `main` | **Yes, locally** | Every CI step was run locally with the CI environment (placeholder env, no API running): all passed. The workflow itself runs on the first push |
 
 ## 10.2 SOLID
 
@@ -43,7 +46,7 @@ Legend: **Yes** = built and evidenced. **Partly** = built, with a stated gap. **
 | O | **Yes** | New moderation decision = new command class; new submission form = new subclass; new LLM = new adapter wrapped by the same decorator |
 | L | **Yes** | `QuickSubmission` and `DetailedSubmission` both return at least one valid round (tested); every `LlmClient` returns parsed JSON or throws `UpstreamError` (tested) |
 | I | **Yes** | Ports split by purpose: `ExperienceReader`, `MyContentReader`, `AdminQueueReader`, `ModerationWriter` has one method, `GuideRepository`, `LlmClient` |
-| D | **Yes** | Services take ports; `container.js` is the only file naming concrete classes; tests build the same container with fakes (no database in 116 tests) |
+| D | **Yes** | Services take ports; `container.ts` is the only file naming concrete classes; tests build the same container with fakes (no database in 130 tests) |
 
 ## 10.3 Class diagram versus code (resolved 2026-11-10)
 
@@ -67,7 +70,7 @@ Still not TypeScript classes, deliberately: `Experience`, `Profile`, `Vote`, `Bo
 | Command | Yes | `ModerationCommand` family |
 | Repository, Adapter | Yes | `Supabase*` classes behind ports; `GeminiClient` adapts Gemini to `LlmClient` |
 | Decorator | Yes | `FallbackLlmClient` wraps `LlmClient`s |
-| Composition root | Yes | `container.js` |
+| Composition root | Yes | `container.ts` |
 | State | Yes | `ExperienceLifecycle` (TypeScript) mirrors the trigger (database); parity tested |
 | Strategy | Yes | `FeedSort` with two implementations |
 | Polymorphism (author) | Yes | `AuthorVisibility` |
@@ -104,7 +107,7 @@ Still not TypeScript classes, deliberately: `Experience`, `Profile`, `Vote`, `Bo
 | Account deletion (FR-12) | ADR-23: service role only for a short named list; admin cannot self-delete | Verified live with a throwaway auth user: live post kept, detached and anonymous (author_id and branch null), non-live post deleted, auth user and profile gone. Admin refused in service and database; `prepare_account_deletion` not callable by users (`004` §9) |
 | Post on behalf (FR-45) | ADR-18 consent; admin only; logged | `004` §7: student blocked, missing consent rejected, public author shows the admin-entered name, `post-on-behalf` logged |
 | Reports queue (FR-43) | ADR-10 append-only log, compare-and-set | `004` §8: dismiss logged with report id; second dismiss is a 409; students blocked |
-| New routes | ADR-11, ADR-16, ADR-19 | `features.test.js` (13 tests): validation, strips identity fields, rate limits (edit 20/h, delete-account 3/day), role checks at route and service |
+| New routes | ADR-11, ADR-16, ADR-19 | `features.test.ts` (13 tests): validation, strips identity fields, rate limits (edit 20/h, delete-account 3/day), role checks at route and service |
 
 Patterns added: none new. `AdminOpsService` and `AccountService` follow the same port and composition-root structure; `UpdateService` maps the shared Zod shape to the database payload.
 
@@ -130,10 +133,21 @@ Result after fixes: no horizontal overflow, no clipped header content, no contro
 | Change | Why | Evidence |
 |---|---|---|
 | Docs say `.js` for API files, README status updated, ADR index and statuses completed (ADR-25 to 28 accepted) | The design is the contract; it had drifted from ADR-27 | `grep -rn "\.ts" docs/design` shows only shared and web files |
-| `SupabaseWriters.js` split: list reads moved to `SupabaseReaders.js`; `mappers2.js` merged into `mappers.js` | One reason to change per file; reads and writes follow the split ports (SRP, ISP) | `npm test` |
-| `ModerationCommandFactory` uses a lookup table instead of a `switch` | Open/Closed: a new decision is one class and one entry | `writes.test.js` moderation tests |
-| `ExperienceService.getById` returns a new object | No mutation of what the reader returned | `api.test.js`, `model.test.js` |
-| New `tests/ports.test.js` | JavaScript has no interfaces, so the test reads each port's methods from `domain/ports.js` and fails if an adapter lacks one, or if a read port gains a write method | 22 tests, 116 in total |
-| `06` sequence diagrams: 6.2 now matches the middleware order; 6.9 (edit a live post) added | Diagrams must match the flows | review against `routes/index.js` |
+| `SupabaseWriters.ts` split: list reads moved to `SupabaseReaders.ts`; `mappers2.ts` merged into `mappers.ts` | One reason to change per file; reads and writes follow the split ports (SRP, ISP) | `npm test` |
+| `ModerationCommandFactory` uses a lookup table instead of a `switch` | Open/Closed: a new decision is one class and one entry | `writes.test.ts` moderation tests |
+| `ExperienceService.getById` returns a new object | No mutation of what the reader returned | `api.test.ts`, `model.test.ts` |
+| New `tests/ports.test.ts` | JavaScript has no interfaces, so the test reads each port's methods from `domain/ports.ts` and fails if an adapter lacks one, or if a read port gains a write method | 22 tests, 116 in total |
+| `06` sequence diagrams: 6.2 now matches the middleware order; 6.9 (edit a live post) added | Diagrams must match the flows | review against `routes/index.ts` |
 
 Still open and stated honestly: `Idempotency-Key` on submit (deferred), API latency measurement (NFR-05), screen-reader pass (NFR-10), no mutation test for the concurrency defences.
+
+## 10.10 TypeScript, admin roles and CI/CD (2026-11-17)
+
+| Change | Why | Evidence |
+|---|---|---|
+| API restored to TypeScript from `70072b1^`, JavaScript-era changes replayed, ADR-27 marked superseded by ADR-30 | Compiler-checked ports; one language across the monorepo | `npm run typecheck`; 116 tests at parity before new work |
+| `tests/ports.test.ts` reads `ports.ts` interface bodies | `tsc` already enforces `implements`; the test keeps the Interface Segregation checks and that every port has a real adapter | 22 tests |
+| Admin roles: `AdminRoleWriter` port, `SupabaseAdminRoleWriter`, `AdminRoleService`, three routes, "Admins" tab | ADR-31 | `admins.test.ts`, `007_admin_roles.sql`, `03` diagram updated |
+| `.github/workflows/ci.yml` | ADR-32 | Steps run locally |
+| Docs renamed API file references from `.js` to `.ts` (only names that are real API files) | The design is the contract | `grep -rn "\.js\b" docs/design` shows only the ADR-27 record and this history |
+

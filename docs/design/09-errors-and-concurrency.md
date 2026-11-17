@@ -38,6 +38,9 @@ Principle: **every failure is classified, every classified failure has a stable 
 | Edit of a live post | Stored as pending update; readers keep the approved version; a second edit replaces the first pending one |
 | Account deleted with "keep" | `author_id` set null, row forced anonymous, author name cleared |
 | Admin tries to delete own account | Forbidden (keeps the log's admin reference resolvable) |
+| Admin removes their own admin access | 403 from the service and the database function; another admin must do it |
+| Admin is granted to an email that has never signed in | 404 with "ask them to sign in once"; no pending grant is stored |
+| A demoted admin's next request | Role is read from the database per request (ADR-22), so admin routes answer 403 at once |
 | Anonymous post plus branch | Branch never serialised; public view omits the column |
 | Gemini returns citation numbers that do not exist | Dropped before storing |
 | Gemini returns malformed JSON | `UpstreamError`; nothing cached |
@@ -58,6 +61,7 @@ Principle: **every failure is classified, every classified failure has a stable 
 | Submission writes experience, rounds, questions | Crash midway leaves a half post | One transaction in an RPC | ACID |
 | Many requests regenerate the same AI guide | Duplicate model calls and cost | Upsert on unique `company_id`; optionally an advisory lock per company | Idempotent write, single flight |
 | Rate limiter counted from several serverless instances | In-memory counters disagree | Atomic upsert increment in Postgres | Shared state |
+| Two admins remove each other's admin access at the same moment (ADR-31) | Each sees two admins, both pass the "not the last admin" check, zero admins remain | `_change_role` takes one transaction-scoped advisory lock for every role change and re-checks `is_admin()` after acquiring it; the second change runs after the first commits and is refused because its caller is no longer an admin | Mutual exclusion (critical section); re-validate after acquiring the lock |
 
 ## 9.5 Test plan for this document
 

@@ -7,6 +7,7 @@ import { AdminUpdates } from "./AdminUpdates";
 import { AdminReports } from "./AdminReports";
 import { AdminCompanies } from "./AdminCompanies";
 import { AdminPostForm } from "./AdminPostForm";
+import { AdminAdmins } from "./AdminAdmins";
 
 /**
  * Open/Closed: a new admin tool is one entry in PANELS. Each panel owns its own data and rules (Single Responsibility);
@@ -21,6 +22,7 @@ const PANELS = {
   reports: { label: "Reports", View: AdminReports },
   companies: { label: "New companies", View: AdminCompanies },
   proxy: { label: "Post on behalf of student", View: AdminPostForm },
+  admins: { label: "Admins", View: AdminAdmins },
 } as const;
 type Key = keyof typeof PANELS;
 

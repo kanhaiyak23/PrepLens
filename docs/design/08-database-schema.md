@@ -94,7 +94,7 @@ Role is changed only by server code or SQL, never by a user-writable policy.
 `id` · `experience_id` FK · `reporter_id` FK nullable (SET NULL) · `reason` CHECK in ('interviewer-named','confidential','false','abusive','other') · `note` · `status` CHECK in ('open','actioned','dismissed') · `resolved_by` · `resolved_at` · partial unique index on `(reporter_id, experience_id) WHERE status = 'open'` to prevent duplicate open reports.
 
 ### moderation_logs (append only, ADR-10)
-`id` · `action` CHECK in ('approve','reject','approve-update','reject-update','post-on-behalf','remove','reinstate','dismiss-report') · `experience_id` nullable FK ON DELETE SET NULL · `admin_id` FK NOT NULL · `report_id` nullable · `company_name` · `role` · `created_at`. No UPDATE or DELETE policy, plus a BEFORE UPDATE OR DELETE trigger that raises.
+`id` · `action` CHECK in ('approve','reject','approve-update','reject-update','post-on-behalf','remove','reinstate','dismiss-report','approve-company','merge-company','grant-admin','revoke-admin') · `experience_id` nullable FK ON DELETE SET NULL · `admin_id` FK NOT NULL · `report_id` nullable · `subject_id` nullable FK to `profiles` ON DELETE SET NULL (whose role changed, 0013) · `subject_email` (snapshot) · `company_name` · `role` · `created_at`. No UPDATE or DELETE policy, plus a BEFORE UPDATE OR DELETE trigger that raises.
 
 ### company_guides
 `id` · `company_id` FK **UNIQUE** · `fingerprint` text NOT NULL · `content` jsonb NOT NULL · `source_ids` uuid[] · `model` text · `generated_at`
@@ -186,3 +186,6 @@ Verified in a rolled-back test: non-college, lookalike and `nst.rishihood.edu.in
 Behaviour of `update_experience`: a post that is `published` stores the proposed change in `pending_update` and keeps serving the approved version; a `pending`, `unpublished` or `rejected` post is edited directly (a rejected one returns to `pending`); a `removed` post cannot be edited; changing `isAnonymous` applies at once. Company changes are not editable. Tests: `supabase/tests/004_updates_deletion_onbehalf_reports.sql`.
 
 **0010** (2026-11-10): `list_experiences` gained `p_sort` (`newest` or `interview`) with its own keyset `(interview_year, coalesce(interview_month, 0), id)`; index `exp_interview_sort` replaced the unused `exp_interview_feed`. Test: `supabase/tests/005_feed_sort.sql`.
+
+**0013** (admin roles, ADR-31): `moderation_logs` gains `subject_id` and `subject_email` and the actions `grant-admin` and `revoke-admin`; the append-only trigger also allows the FK null-out of `subject_id`. Functions: `admin_list_admins()`, `admin_grant_admin(email)`, `admin_revoke_admin(user_id)`, all admin-only and executable by `authenticated`; both writes go through the internal `_change_role` (no grant), which takes `pg_advisory_xact_lock(hashtext('preplens.admin_roles'))`, re-checks `is_admin()` after the lock, refuses self-removal and removing the last admin, deletes a revoked email from `admin_emails`, and logs the change. Test: `supabase/tests/007_admin_roles.sql`. **Status: written, not yet applied** (apply with the Supabase MCP `apply_migration` or the SQL editor, then run the test).
+
