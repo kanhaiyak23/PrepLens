@@ -1,0 +1,128 @@
+# CI/CD for PrepLens (ADR-32).
+# CI runs on every pull request and every push to main: the API is typechecked, tested and compiled; the web app is linted,
+# typechecked and built; migrations are checked for numbering clashes. Nothing deploys unless all of it passes.
+# CD runs only on a push to main after CI is green. Each deploy step is skipped (with a notice) until its secrets exist,
+# so this file is safe to merge before the hosting accounts are connected.
+name: CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  api:
+    name: API (typecheck, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build:shared
+      - name: Typecheck
+        run: npm run typecheck -w @preplens/api
+      - name: Test (Vitest + supertest, in-memory fakes, no database)
+        run: npm test -w @preplens/api
+      - name: Compile to dist
+        run: npm run build -w @preplens/api
+
+  web:
+    name: Web (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Public placeholders: the build only needs the names to exist. Real values live in the Vercel project.
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-builds-only
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build:shared
+      - name: Lint
+        run: npm run lint -w web
+      - name: Typecheck (after generating Next's route types)
+        working-directory: apps/web
+        run: npx next typegen && npx tsc --noEmit
+      - name: Build
+        run: npm run build -w web
+
+  migrations:
+    name: Migrations (numbering)
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Numbers are unique and have no gaps
+        run: |
+          nums=$(ls supabase/migrations/*.sql | xargs -n1 basename | cut -c1-4)
+          dupes=$(echo "$nums" | sort | uniq -d)
+          if [ -n "$dupes" ]; then echo "::error::Two migrations share a number: $dupes"; exit 1; fi
+          expected=1
+          for n in $(echo "$nums" | sort); do
+            if [ "$((10#$n))" -ne "$expected" ]; then echo "::error::Migration numbering has a gap or jump at $n (expected $expected)"; exit 1; fi
+            expected=$((expected + 1))
+          done
+          echo "$(echo "$nums" | wc -l | tr -d ' ') migrations, numbered 0001 to $(echo "$nums" | sort | tail -1)"
+
+  deploy:
+    name: Deploy (main only)
+    needs: [api, web, migrations]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: API to Render (deploy hook)
+        if: env.RENDER_DEPLOY_HOOK_URL != ''
+        run: curl --fail --silent --show-error -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null && echo "Render deploy triggered for ${GITHUB_SHA::7}"
+      - name: API deploy skipped
+        if: env.RENDER_DEPLOY_HOOK_URL == ''
+        run: echo "::notice::RENDER_DEPLOY_HOOK_URL is not set, so the API was not deployed from CI."
+
+      - uses: actions/setup-node@v4
+        if: env.VERCEL_TOKEN != ''
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Web to Vercel (production, prebuilt)
+        if: env.VERCEL_TOKEN != '' && env.VERCEL_ORG_ID != '' && env.VERCEL_PROJECT_ID != ''
+        run: |
+          npm ci
+          npm i -g vercel@39
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+      - name: Web deploy skipped
+        if: env.VERCEL_TOKEN == '' || env.VERCEL_ORG_ID == '' || env.VERCEL_PROJECT_ID == ''
+        run: echo "::notice::Vercel secrets are not set, so the web app was not deployed from CI (Vercel's own Git integration may still deploy it)."
