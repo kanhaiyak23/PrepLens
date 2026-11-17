@@ -96,3 +96,5 @@ export type UpdateResult = { result: "applied" | "queued" };
 export type AdminUpdate = { id: string; company: { name: string; slug: string }; role: string; outcome: Outcome; interviewYear: number; changes: Record<string, unknown>; submittedAt: string };
 export type AdminReport = { id: string; experienceId: string; companyName: string; role: string; experienceStatus: ExperienceStatus; reason: string; note: string | null; status: "open" | "actioned" | "dismissed"; createdAt: string };
 export type DeletionResult = { kept: number; deleted: number };
+/** A current admin. `isSelf` marks the caller, whose own access cannot be removed (ADR-31). */
+export type AdminMember = { id: string; email: string; fullName: string; joinedAt: string; isSelf: boolean };

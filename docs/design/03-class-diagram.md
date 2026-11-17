@@ -9,7 +9,7 @@ The first draft drew `Profile`, `Experience`, `Company` and the rest as TypeScri
 Resolution, in two parts:
 
 1. **Diagram A is the entity model as the database implements it.** The tables, keys and relationships are the entities. The multiplicities and the composition and aggregation reasoning from the first draft still hold and are kept.
-2. **Diagram C is the TypeScript domain model, and every class in it is used by running code and covered by tests.** Where behaviour has to exist in TypeScript (what a viewer may do next, how to resume a paged list, what an author looks like on the wire), we wrote real classes: `ExperienceLifecycle`, `FeedSort`, `AuthorVisibility`. Where the database already enforces the rule, the TypeScript class describes it and a test proves the two agree (`model.test.js` reads the SQL and compares the transition table).
+2. **Diagram C is the TypeScript domain model, and every class in it is used by running code and covered by tests.** Where behaviour has to exist in TypeScript (what a viewer may do next, how to resume a paged list, what an author looks like on the wire), we wrote real classes: `ExperienceLifecycle`, `FeedSort`, `AuthorVisibility`. Where the database already enforces the rule, the TypeScript class describes it and a test proves the two agree (`model.test.ts` reads the SQL and compares the transition table).
 
 ## A. Entity model (database tables)
 
@@ -126,6 +126,7 @@ class ReportService { +report(id, dto) }
 class ModerationService { +execute(cmd) +list(q) }
 class AdminOpsService { +listUpdates() +decideUpdate() +listReports() +dismissReport() +postOnBehalf(dto) }
 class CompanyAdminService { +listPending() +decide(slug, action, mergeInto) }
+class AdminRoleService { +list() AdminMember[] +grant(email) +revoke(userId) }
 class GuideService { +getGuide(slug) GuideView }
 class AccountService { +delete(posts) DeletionResult }
 class MeService { +getMe() +update(dto) }
@@ -141,6 +142,7 @@ class GuideSourceReader { <<interface>> +forCompany(slug) }
 class LlmClient { <<interface>> +generateJson(req) }
 class RateLimiter { <<interface>> +consume(key, action, limit, window) }
 class AccountDeleter { <<interface>> +delete(userId, keepLive) }
+class AdminRoleWriter { <<interface>> +list() +grant(email) +revoke(userId) }
 class TokenVerifier { <<interface>> +verify(token) }
 
 class SupabaseExperienceReader
@@ -151,6 +153,7 @@ class FallbackLlmClient
 class PostgresRateLimiter
 class SupabaseAccountDeleter
 class SupabaseTokenVerifier
+class SupabaseAdminRoleWriter
 
 ExperienceController ..> ExperienceService
 ExperienceController ..> SubmissionService
@@ -158,6 +161,7 @@ ExperienceController ..> UpdateService
 ExperienceController ..> LifecycleService
 AdminController ..> ModerationService
 AdminController ..> AdminOpsService
+AdminController ..> AdminRoleService
 GuideController ..> GuideService
 MeController ..> AccountService
 ExperienceService ..> ExperienceReader
@@ -168,6 +172,7 @@ GuideService ..> LlmClient
 GuideService ..> GuideRepository
 GuideService ..> GuideSourceReader
 AccountService ..> AccountDeleter
+AdminRoleService ..> AdminRoleWriter
 
 SupabaseExperienceReader ..|> ExperienceReader
 SupabaseExperienceWriter ..|> ExperienceWriter
@@ -178,9 +183,10 @@ FallbackLlmClient o-- LlmClient : wraps
 PostgresRateLimiter ..|> RateLimiter
 SupabaseAccountDeleter ..|> AccountDeleter
 SupabaseTokenVerifier ..|> TokenVerifier
+SupabaseAdminRoleWriter ..|> AdminRoleWriter
 ```
 
-Services depend only on the interfaces. The `Supabase*`, `Gemini*` and `Postgres*` classes live in `infrastructure/` and are wired in `container.js`, the only file that names them.
+Services depend only on the interfaces. The `Supabase*`, `Gemini*` and `Postgres*` classes live in `infrastructure/` and are wired in `container.ts`, the only file that names them.
 
 ## C. TypeScript domain model (hierarchies and entities with behaviour)
 
@@ -274,11 +280,11 @@ What each hierarchy removes (each is used by running code and tested):
 
 | Hierarchy | The conditional it replaces | Where used | Test |
 |---|---|---|---|
-| `Submission` | `if (mode === 'quick')` repeated in controller, service, tests | `SubmissionService`, `AdminOpsService.postOnBehalf` | `writes.test.js`, `features.test.js` |
-| `FeedSort` | A growing `switch (sort)` in the service and the cursor code | `ExperienceService.getFeed` | `model.test.js` (cursor round trip, cross-sort rejection) and a live paged run of both orders |
-| `AuthorVisibility` | `if (isAnonymous)` in the mapper | `toCard`, `toDetail` | `units.test.js` and `model.test.js` (fail closed, extra fields cannot leak) |
-| `ExperienceLifecycle` | Status checks scattered through the UI | `ExperienceService.getById` adds `allowedActions`; the experience page draws its buttons from it | `model.test.js`, including a test that reads the SQL trigger and compares the transition table |
-| `ModerationCommand` | One `moderate(action, …)` with a switch and a forgettable log write | `ModerationService.execute`, `AdminController.moderate` | `writes.test.js` |
+| `Submission` | `if (mode === 'quick')` repeated in controller, service, tests | `SubmissionService`, `AdminOpsService.postOnBehalf` | `writes.test.ts`, `features.test.ts` |
+| `FeedSort` | A growing `switch (sort)` in the service and the cursor code | `ExperienceService.getFeed` | `model.test.ts` (cursor round trip, cross-sort rejection) and a live paged run of both orders |
+| `AuthorVisibility` | `if (isAnonymous)` in the mapper | `toCard`, `toDetail` | `units.test.ts` and `model.test.ts` (fail closed, extra fields cannot leak) |
+| `ExperienceLifecycle` | Status checks scattered through the UI | `ExperienceService.getById` adds `allowedActions`; the experience page draws its buttons from it | `model.test.ts`, including a test that reads the SQL trigger and compares the transition table |
+| `ModerationCommand` | One `moderate(action, …)` with a switch and a forgettable log write | `ModerationService.execute`, `AdminController.moderate` | `writes.test.ts` |
 | `AppError` | Ad hoc error shapes | The error handler, every service | every route test |
 
 Not built, and why: separate `Experience`, `Profile`, `Vote` classes (the database is the entity model, see 3.0); a class per report or per round (data only, no behaviour).

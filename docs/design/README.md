@@ -2,7 +2,7 @@
 
 Capstone evaluation maps to these files. **The design is the contract: code must match it exactly.** If code and a diagram disagree, one of them is a bug; fix it and record why in `02-decisions.md`.
 
-Status: **accepted and implemented.** The design matches the running code (API in JavaScript per ADR-27; shared package and web in TypeScript). Compliance audit: `10-compliance.md`.
+Status: **accepted and implemented.** The design matches the running code (API, shared package and web all in TypeScript, ADR-30; CI/CD in `.github/workflows/ci.yml`, ADR-32). Compliance audit: `10-compliance.md`.
 
 | \# | File | Evaluation criterion |
 | --- | --- | --- |

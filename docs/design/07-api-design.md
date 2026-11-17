@@ -14,7 +14,7 @@ Two deployables in one monorepo (ADR-24): `apps/api` (Node.js + Express, TypeScr
 
 Dependency direction: Presentation → Application → Domain ← Infrastructure. The web app depends on the API's HTTP contract, never on its internals.
 
-### API folder layout (PLANNED, created in Phase 2/3)
+### API folder layout (as built, TypeScript, ADR-30)
 
 ```
 apps/api/src/
@@ -23,11 +23,12 @@ apps/api/src/
   middleware/        requestId, authenticate, requireRole, rateLimit, validate, errorHandler
   services/          application layer
   domain/            entities, commands, policies, interfaces, errors
-  repositories/      Supabase implementations of domain interfaces
-  infrastructure/    GeminiClient, FallbackLlmClient, PostgresRateLimiter
-  container.js       composition root
-  app.js, server.js  Express app vs process start (so tests import app without listening)
+  infrastructure/    supabase/ (repository adapters), llm/ (GeminiClient, FallbackLlmClient), PostgresRateLimiter
+  container.ts       composition root
+  app.ts, server.ts  Express app vs process start (so tests import app without listening)
 ```
+
+Build: `tsc -p tsconfig.build.json` compiles `src/` to `dist/`; production runs `node dist/server.js`; development runs `tsx watch src/server.ts`. Tests import the TypeScript directly (Vitest).
 
 ## 7.2 Controller responsibilities (all controllers do exactly this)
 
@@ -99,6 +100,9 @@ Base path `/api/v1`. All responses use the envelope in 7.5. Auth column: `none`,
 | Update decision | `POST /admin/experiences/{id}/update/{approve\|reject}` | admin | none | `{ note? }` | `200` | 403, 404, 409 |
 | Report decision | `POST /admin/reports/{id}/{dismiss\|action}` | admin | none | | `200` | 403, 404, 409 |
 | Company admin | `POST /admin/companies/{slug}/{approve\|reject\|merge}` | admin | none | `{ mergeInto? }` | `200 { data: Company }` | 400, 403, 404, 409 |
+| List admins | `GET /admin/admins` | admin | none | | `200 { data: AdminMember[] }` (`isSelf` marks the caller) | 401, 403 |
+| Make admin | `POST /admin/admins` | admin | 30/hour | `{ email }` | `201 { data: AdminMember }` | 400, 401, 403, 404 (no account yet), 409 (already admin), 429 |
+| Remove admin | `DELETE /admin/admins/{id}` | admin | 30/hour | | `200 { data: AdminMember }` | 400, 401, 403 (own access), 404, 409 (not an admin, or the last admin), 429 |
 | Post on behalf | `POST /admin/experiences` | admin | none | `SubmissionDto` + `authorName`, `consent` | `201` | 400, 403 |
 | Health | `GET /healthz` | none | no-store | | `200 { status, uptime, version }` | |
 

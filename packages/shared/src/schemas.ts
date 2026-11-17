@@ -90,6 +90,10 @@ export const slugParam = z.object({ slug: z.string().trim().min(1).max(80).regex
 export const companyDecisionParams = z.object({ slug: slugParam.shape.slug, action: z.enum(["approve", "merge"]) });
 export const companyDecisionBody = z.object({ mergeInto: slugParam.shape.slug.optional() });
 
+/** Make someone an admin by their PrepLens (college) email. The database checks the account exists (ADR-31). */
+export const grantAdminSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254) });
+export type GrantAdminDto = z.infer<typeof grantAdminSchema>;
+
 /** Edit or result update of the author's own post. At least one field. A live post queues it for review (see 02 ADR-15). */
 export const experienceUpdateSchema = z
   .object({

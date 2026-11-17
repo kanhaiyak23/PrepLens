@@ -3,7 +3,7 @@
 Format of every record: **Problem → Decision → Why (system design concept) → Rejected alternatives and trade-offs.**
 Status is `Proposed` until the owner approves; then `Accepted`. If a decision changes, do not delete it: mark it `Superseded by ADR-xx` and say what forced the change.
 
-Every decision below has a diagram. All other diagrams are in the root [`README.md`](../../README.md). Index: [ADR-01 Layers](#adr-01) · [02 Relational DB](#adr-02) · [03 Rounds as tables](#adr-03) · [04 RLS + server authz](#adr-04) · [05 Domain restriction in DB](#adr-05) · [06 Anonymity](#adr-06) · [07 Votes](#adr-07) · [08 Keyset pagination](#adr-08) · [09 Cache vs per-user state](#adr-09) · [10 Append-only log](#adr-10) · [11 Rate limiting](#adr-11) · [12 AI guide](#adr-12) · [13 Rendering](#adr-13) · [14 Atomic writes](#adr-14) · [15 Lifecycle state machine](#adr-15) · [16 Validation](#adr-16) · [17 Search](#adr-17) · [18 Consent](#adr-18) · [19 Error envelope](#adr-19) · [20 Scale ladder](#adr-20) · [21 Express API service](#adr-21) · [22 Authentication](#adr-22) · [23 User-scoped DB access](#adr-23) · [24 Monorepo + shared schemas](#adr-24) · [25 Closed tables + functions](#adr-25) · [26 Test accounts](#adr-26) · [27 API in JavaScript](#adr-27) · [28 Stitch web UI](#adr-28)
+Every decision below has a diagram. All other diagrams are in the root [`README.md`](../../README.md). Index: [ADR-01 Layers](#adr-01) · [02 Relational DB](#adr-02) · [03 Rounds as tables](#adr-03) · [04 RLS + server authz](#adr-04) · [05 Domain restriction in DB](#adr-05) · [06 Anonymity](#adr-06) · [07 Votes](#adr-07) · [08 Keyset pagination](#adr-08) · [09 Cache vs per-user state](#adr-09) · [10 Append-only log](#adr-10) · [11 Rate limiting](#adr-11) · [12 AI guide](#adr-12) · [13 Rendering](#adr-13) · [14 Atomic writes](#adr-14) · [15 Lifecycle state machine](#adr-15) · [16 Validation](#adr-16) · [17 Search](#adr-17) · [18 Consent](#adr-18) · [19 Error envelope](#adr-19) · [20 Scale ladder](#adr-20) · [21 Express API service](#adr-21) · [22 Authentication](#adr-22) · [23 User-scoped DB access](#adr-23) · [24 Monorepo + shared schemas](#adr-24) · [25 Closed tables + functions](#adr-25) · [26 Test accounts](#adr-26) · [27 API in JavaScript (superseded)](#adr-27) · [28 Stitch web UI](#adr-28) · [29 Rishihood brand](#adr-29) · [30 API back to TypeScript](#adr-30) · [31 Admins manage admins](#adr-31) · [32 CI/CD](#adr-32)
 
 ---
 
@@ -22,7 +22,7 @@ Every decision below has a diagram. All other diagrams are in the root [`README.
 flowchart LR
   PR["Presentation<br/>routes, controllers"] --> AP["Application<br/>services"] --> DM["Domain<br/>ports, model"]
   IN["Infrastructure<br/>Supabase, Gemini, Postgres"] -. implements .-> DM
-  CR["container.js"] --> IN
+  CR["container.ts"] --> IN
   CR --> AP
 ```
 
@@ -591,7 +591,10 @@ flowchart TD
   B -- no --> NO["rejected by the trigger"]
 ```
 
+<a id="adr-27"></a>
 ## ADR-27 The API is written in JavaScript; the shared contract stays TypeScript
+
+**Status: superseded by ADR-30.** Kept for the record.
 
 **Problem.** The owner wants the backend in plain JavaScript. The API was first built in TypeScript, and the web app and API share one contract package.
 
@@ -601,6 +604,7 @@ flowchart TD
 
 **Rejected.** (1) Converting `packages/shared` too: the web app would lose types for every API response. (2) Keeping TS with `allowJs`: no benefit over the status quo. Trade-off accepted: renames and signature changes in the API are no longer caught by `tsc`; the 94 tests and the Zod schemas are the safety net.
 
+<a id="adr-28"></a>
 ## ADR-28 Web UI follows the owner's Stitch design, built from tokens, primitives and lookup tables
 
 **Problem.** The first frontend was an art-directed cinematic site that students could not read: too many sections, unclear labels. The owner designed the real screens in Google Stitch (project `3022551661059433556`: Home, Sign in, Experiences, Experience detail, Share your interview, My posts, Profile, Admin moderation) and asked for the app to be rebuilt from them.
@@ -613,6 +617,7 @@ flowchart TD
 
 **Deliberate differences from the mock.** Anything with no real data behind it is left out, following the rule of no fake numbers: archive count and "page 1 of 11", difficulty, per-round duration and platform, view counts, "peer impact", admin "automated privacy check", author photos. The mock's right-hand admin column became tabs. The earlier rule "no violet" in CLAUDE.md section 8 is superseded: the owner's palette is violet.
 
+<a id="adr-29"></a>
 ## ADR-29 Re-theme the web UI to the Rishihood University brand
 
 **Problem.** PrepLens is for NST students at Rishihood University, but the Stitch palette (violet, Public Sans) had no connection to the institution. The owner asked for a premium look in the university's own identity, using its logos and campus imagery.
@@ -624,3 +629,37 @@ flowchart TD
 **Rejected.** (a) Hot-linking images from rishihood.edu.in: breaks if their site changes, and leaks every visitor's request to a third party. (b) Copying the university site's layout: the product is an archive, not a prospectus; only the identity is borrowed. (c) A new component library for the "premium" feel: the existing primitives already carry it once the tokens change.
 
 **Rules kept.** No invented numbers: the home page counts (experiences published, companies covered) are computed from the API response, and the section hides itself if the API is unreachable. Anonymous authors still render as `Anonymous · <batch>`. The consent sentence still sits directly above the submit button. **Open item:** the university logos and photographs belong to Rishihood University; written permission is needed before a public launch.
+
+<a id="adr-30"></a>
+## ADR-30 The API returns to TypeScript (supersedes ADR-27)
+
+**Problem.** ADR-27 moved the API to plain JavaScript and accepted a cost: renames and signature changes are no longer caught by a compiler, and the ports became JSDoc typedefs that needed a text-parsing test to approximate `implements`. The owner now wants the backend in TypeScript, and a CI pipeline (ADR-32) makes a type check on every pull request cheap.
+
+**Decision.** `apps/api` is TypeScript again (`strict`, `noUncheckedIndexedAccess`, NodeNext ES modules). The pre-conversion TypeScript source was restored from git (`70072b1^`) and the JavaScript-era changes were replayed on it: readers split from writers (`SupabaseReaders.ts`), `mappers2` merged into `mappers.ts`, the moderation factory as a lookup table, `ExperienceService.getById` returning a new object, and the port contract test (now reading `ports.ts`). `tsx watch` for development, `tsc -p tsconfig.build.json` to `dist/` for production, `node dist/server.js` to run. Behaviour is unchanged: the same 116 tests pass before any new feature was added.
+
+**Why.** Dependency Inversion is now checked by the compiler: every adapter declares `implements <Port>`, so a missing or mistyped method fails the build, not a test. One language across web, shared and API removes the context switch the old ADR accepted. Zod still validates every runtime boundary (ADR-16); static types cover the code between boundaries, where Zod cannot look.
+
+**Rejected.** (1) Stay on JavaScript with `// @ts-check` and JSDoc: types become comments that drift, and interfaces still are not real. (2) Rewrite the JavaScript by hand into new TypeScript: restoring the typed original and replaying a small, known diff (12 files, about 150 lines) is less risky than retyping 2,000 lines. (3) Run `.ts` directly in production with Node's type stripping: it forbids some syntax (parameter properties, which the services use) and skips type checking at deploy. **Trade-off:** a build step is back; the host must run `npm run build:api` and start `dist/server.js` (see CLAUDE.md §13).
+
+<a id="adr-31"></a>
+## ADR-31 Admins can make other people admin, and remove admin access
+
+**Problem.** The only way to add an admin was a SQL insert into `admin_emails` before that person's first sign-in. Running the archive needs more than one moderator, and changing who moderates should not need database access. Two risks come with it: an admin could lock everyone out (remove the last admin, or two admins removing each other at the same moment), and role changes must stay accountable.
+
+**Decision.** A peer model: any admin can grant or revoke the admin role. Three database functions, all `security definer`, executable only by signed-in users and each checking `is_admin()` (migration `0013_admin_roles.sql`): `admin_list_admins()`, `admin_grant_admin(email)` (the account must already exist, i.e. they signed in once) and `admin_revoke_admin(user_id)`. Both writes go through one internal function, `_change_role`, which (1) takes a transaction-scoped advisory lock so role changes run one at a time, (2) re-checks that the caller is still an admin *after* taking the lock, (3) refuses self-removal and removing the last admin, (4) removes a revoked email from `admin_emails` so a deleted-and-recreated account is not re-promoted, and (5) writes `grant-admin` or `revoke-admin` to the append-only moderation log with the subject (`subject_id`, `subject_email`). API: `GET /admin/admins`, `POST /admin/admins {email}` (201), `DELETE /admin/admins/:id`, admin-only and rate limited (30 per hour per admin). The role is read from the database on every request (ADR-22), so a change takes effect on the person's next request. UI: an "Admins" tab in the admin console, with a confirm step before removal and no remove button on your own row.
+
+**Why.** *Defence in depth*: `requireRole` at the route, `AdminRoleService` in the API (fails fast on self-removal and self-grant with a clear message), and the database function (the only layer that can see every admin and every concurrent change). *Mutual exclusion*: without the lock, two admins A and B demoting each other concurrently would each see two admins, both pass the last-admin check, and leave zero; with the lock the second change runs after the first commits, finds its caller is no longer an admin, and is refused. *Accountability*: the append-only log (ADR-10) records who changed whose role. *Single Responsibility*: `AdminRoleService` does role management only; `AdminOpsService` is unchanged. *Interface Segregation*: a separate `AdminRoleWriter` port rather than three more methods on an existing admin port.
+
+**Rejected.** (1) A super-admin or owner tier: a third role and a second set of rules for a handful of moderators; the self-removal and last-admin rules already prevent lockout. (2) Granting by email before first sign-in (writing `admin_emails`): creates a pending state that is invisible in the list and could promote a mistyped address on a future sign-up; asking them to sign in once is simpler and visible. (3) Checking the last-admin rule only in the API: the API cannot see a concurrent change in another request; only a lock in the database can serialise them. (4) `SERIALIZABLE` isolation for these functions: Supabase RPCs run in the default isolation, and retry-on-serialization-failure would need client logic; one advisory lock is simpler and the change rate is tiny.
+
+<a id="adr-32"></a>
+## ADR-32 CI/CD with GitHub Actions; deploy only after CI is green
+
+**Problem.** Nothing checked a change before it reached `main`, and deploys depended on the host's own Git integration. Vercel's integration also blocks deploys of commits whose author is not on the Vercel team, which stopped a deploy once already.
+
+**Decision.** One workflow, `.github/workflows/ci.yml`. **CI** runs on every pull request and every push to `main`, as three parallel jobs: *API* (`npm ci`, build shared, `tsc --noEmit`, the Vitest + supertest suite, compile to `dist/`), *Web* (lint, `tsc --noEmit`, `next build` with public placeholder values) and *Migrations* (the numbers are unique and have no gaps, so two branches cannot both add `0014`). **CD** is a `deploy` job that runs only on a push to `main` and only when all three CI jobs passed: it calls the Render deploy hook for the API (`RENDER_DEPLOY_HOOK_URL`) and deploys the web app with the Vercel CLI as a prebuilt production deploy (`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`). Each deploy step is skipped with a notice until its secrets exist. Deploys share one concurrency group and never cancel each other; pull request runs cancel superseded runs.
+
+**Why.** *Fail fast and shift left*: a type error, failing test or broken build is caught on the pull request, before review. *Gated delivery*: production only ever receives a commit that passed every check. Deploying through the CLI with the owner's token makes the deploy independent of who authored the commit. Database tests (`supabase/tests/`) need a real project, so they stay a manual step; the migrations check is the part that can run without one.
+
+**Rejected.** (1) Separate workflows for CI and CD linked by `workflow_run`: harder to follow, and the dependency on CI is less visible than `needs:`. (2) Running database migrations from CI: an unreviewed `apply_migration` against production is a destructive capability; migrations stay a deliberate step (CLAUDE.md §7). (3) Relying only on the hosts' Git integrations: no gate on tests, and the Vercel author check. **Trade-off:** if Render auto-deploy and Vercel's Git integration stay on, a push deploys twice; switch them off (Render: Auto-Deploy "Off" or "After CI checks pass"; Vercel: Git deployments off) once the secrets are set.
+

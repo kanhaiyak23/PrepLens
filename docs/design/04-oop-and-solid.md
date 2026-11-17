@@ -54,4 +54,4 @@ High-level modules depend on abstractions; details depend on abstractions too.
 
 ## 4.4 Honest limits
 
-The API is plain JavaScript (ADR-27), and JavaScript with Express still favours functions and modules. We use classes where state plus behaviour belong together (`Experience`, commands, errors, services) and plain functions for pure helpers (cursor encode/decode, fingerprinting). The diagrams in `03` list exactly the classes that will exist; anything not listed there is not a class.
+The API is TypeScript (ADR-30, which reverses ADR-27), and TypeScript with Express still favours functions and modules. We use classes where state plus behaviour belong together (`Experience`, commands, errors, services) and plain functions for pure helpers (cursor encode/decode, fingerprinting). The diagrams in `03` list exactly the classes that will exist; anything not listed there is not a class.

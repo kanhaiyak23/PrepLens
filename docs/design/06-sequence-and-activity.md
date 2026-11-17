@@ -35,7 +35,7 @@ sequenceDiagram
 
 ## 6.2 Submit an experience (UC-06, ADR-14, ADR-16, ADR-11, ADR-18)
 
-As built, the order is the middleware chain in `routes/index.js`: authenticate, rate limit, validate, controller. The rate limiter is middleware, not a service call.
+As built, the order is the middleware chain in `routes/index.ts`: authenticate, rate limit, validate, controller. The rate limiter is middleware, not a service call.
 
 ```mermaid
 sequenceDiagram

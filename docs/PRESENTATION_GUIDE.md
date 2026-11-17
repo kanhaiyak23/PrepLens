@@ -4,7 +4,7 @@ How to explain the design tomorrow: what we built, why each decision was made, a
 
 **One-line pitch:** PrepLens is a moderated archive of campus placement interview experiences written by seniors for juniors, plus an AI prep guide that cites only real experiences.
 
-**Gotcha to know before the viva:** the design docs in `docs/design/` still say `.ts` in places (`container.ts`, `ports.ts`). The API was later written in plain JavaScript (ADR-27), so the real files are `container.js`, `ports.js` (JSDoc typedefs as interfaces). The shared package and the web app are TypeScript. Say this yourself before an examiner finds it, and give the reason: Zod schemas in `packages/shared` already give the contract, so the API did not need a second type system.
+**Know the history before the viva:** the API started in TypeScript, was converted to plain JavaScript (ADR-27), and was converted back to TypeScript (ADR-30). Be ready to give the reason for the return: ports are now real `interface`s that the compiler enforces (`implements ExperienceReader`), so a renamed method or a changed signature fails the build instead of a test, and CI (ADR-32) runs `tsc` on every pull request. Zod still guards the runtime boundary; types guard the code between boundaries.
 
 ---
 
@@ -37,7 +37,7 @@ How to explain the design tomorrow: what we built, why each decision was made, a
 Browser ──► apps/web (Next.js 16, presentation only)
               │  Authorization: Bearer <Supabase access token>
               ▼
-          apps/api (Express 5, JavaScript)  ──► Supabase Postgres (RLS + SQL functions + triggers)
+          apps/api (Express 5, TypeScript)  ──► Supabase Postgres (RLS + SQL functions + triggers)
               │                                  Supabase Auth (Google OAuth)
               └──► Gemini (only from the API)
 packages/shared  ──► Zod schemas, enums, DTO types, error codes (used by web AND api)
@@ -51,32 +51,32 @@ packages/shared  ──► Zod schemas, enums, DTO types, error codes (used by w
 | User-scoped DB client per request; service role only for named tasks | ADR-23 | Least privilege | RLS applies to the caller; service role used only for rate limiter, guide cache, account deletion |
 | Postgres, not MongoDB | ADR-02 | Integrity belongs in the database | Votes, bookmarks, consent, audit log need constraints that cannot be raced |
 
-Where: `apps/api/src/app.js` (helmet, CORS to one origin never `*`, 100 kb JSON limit, error handler last), `apps/api/src/container.js`.
+Where: `apps/api/src/app.ts` (helmet, CORS to one origin never `*`, 100 kb JSON limit, error handler last), `apps/api/src/container.ts`.
 
 ---
 
 ## 3. Backend layers (ADR-01)
 
 ```
-routes/index.js            URL + middleware chain per route
-controllers/*.js           parse req.valid, call ONE service method, shape response. No rules.
-services/*.js              application logic, depends on ports only
-domain/                    ports.js, errors.js, Submission.js, ModerationCommand.js, model/*, guide/CompanyGuide.js
+routes/index.ts            URL + middleware chain per route
+controllers/*.ts           parse req.valid, call ONE service method, shape response. No rules.
+services/*.ts              application logic, depends on ports only
+domain/                    ports.ts, errors.ts, Submission.ts, ModerationCommand.ts, model/*, guide/CompanyGuide.ts
 infrastructure/            Supabase adapters, GeminiClient, FallbackLlmClient, PostgresRateLimiter
-container.js               composition root: the only file that names concrete classes
+container.ts               composition root: the only file that names concrete classes
 ```
 
 Dependencies point inward: services import `domain/`, never `infrastructure/`. Quick proof (compliance audit, `docs/design/10-compliance.md`): grep for `supabase` inside `services/` returns nothing.
 
-**Request pipeline (read** `routes/index.js` **top to bottom):**`authenticate` → `requireRole` → `rateLimit` → `validate` (Zod) → controller → service → repository → DB. Example, line 36: `r.post("/experiences", ...signedIn, rateLimit(c,"submit",5,DAY), validate({body: submissionSchema}), experiences.submit)`.
+**Request pipeline (read** `routes/index.ts` **top to bottom):**`authenticate` → `requireRole` → `rateLimit` → `validate` (Zod) → controller → service → repository → DB. Example, line 36: `r.post("/experiences", ...signedIn, rateLimit(c,"submit",5,DAY), validate({body: submissionSchema}), experiences.submit)`.
 
 Middleware files in `apps/api/src/middleware/`:
 
-- `authenticate.js`: verifies the bearer token, loads role from DB, builds `req.ctx = {requestId, viewer, services}`. An invalid token is an error, never a silent downgrade to visitor.
-- `validate.js`: "parse, don't validate" (ADR-16). Unknown keys (like a client-sent `role`) are stripped.
-- `rateLimit.js`: key is `u:<userId>` for signed-in users, hashed IP for visitors (ADR-11). State in Postgres (`check_rate_limit` RPC) so every instance shares counters.
-- `cache.js`: `publicCache` for identical-for-everyone reads, `noStore` for private, `cacheUnlessSignedIn` for a post whose view differs for its author (ADR-09).
-- `errorHandler.js`: one error envelope `{error:{code,message,fields?}, requestId}` (ADR-19). Unknown errors become a generic 500; detail only in logs.
+- `authenticate.ts`: verifies the bearer token, loads role from DB, builds `req.ctx = {requestId, viewer, services}`. An invalid token is an error, never a silent downgrade to visitor.
+- `validate.ts`: "parse, don't validate" (ADR-16). Unknown keys (like a client-sent `role`) are stripped.
+- `rateLimit.ts`: key is `u:<userId>` for signed-in users, hashed IP for visitors (ADR-11). State in Postgres (`check_rate_limit` RPC) so every instance shares counters.
+- `cache.ts`: `publicCache` for identical-for-everyone reads, `noStore` for private, `cacheUnlessSignedIn` for a post whose view differs for its author (ADR-09).
+- `errorHandler.ts`: one error envelope `{error:{code,message,fields?}, requestId}` (ADR-19). Unknown errors become a generic 500; detail only in logs.
 
 ---
 
@@ -86,9 +86,9 @@ Middleware files in `apps/api/src/middleware/`:
 2. **Route** passes authenticate (token verified by `SupabaseTokenVerifier`), `rateLimit` 5/day, `validate` with `submissionSchema` (a Zod `discriminatedUnion("mode")`: quick or detailed; `consent` must be literal `true`).
 3. **Controller** `ExperienceController.submit` calls `req.ctx.services.submissions.submit(req.valid.body)` and returns 201.
 4. **Service** `SubmissionService` asks `SubmissionFactory.create(dto)` for a `QuickSubmission` or `DetailedSubmission`, calls `toPayload()` (Template Method), then `experienceWriter.submit(payload)`.
-5. **Repository** `SupabaseExperienceWriter` (in `infrastructure/supabase/SupabaseWriters.js`) calls one SQL function (RPC) that inserts the experience, rounds, and questions in **one transaction** (ADR-14). Unknown company becomes a `pending` company; author batch/branch are snapshotted.
+5. **Repository** `SupabaseExperienceWriter` (in `infrastructure/supabase/SupabaseWriters.ts`) calls one SQL function (RPC) that inserts the experience, rounds, and questions in **one transaction** (ADR-14). Unknown company becomes a `pending` company; author batch/branch are snapshotted.
 6. **Database** enforces: consent constraint, status transition trigger `guard_experience`, RLS. Post starts `pending`; admin approves later.
-7. Errors from the DB come back as `CODE: message` and `fromDbError` (`domain/errors.js`) turns them into the right `AppError` once.
+7. Errors from the DB come back as `CODE: message` and `fromDbError` (`domain/errors.ts`) turns them into the right `AppError` once.
 
 Practice saying this chain from memory; it demonstrates every layer.
 
@@ -98,12 +98,12 @@ Practice saying this chain from memory; it demonstrates every layer.
 
 | Pillar | Example | File |
 | --- | --- | --- |
-| **Abstraction** | Ports hide Supabase/Gemini/Postgres: `ExperienceReader`, `ExperienceWriter`, `LlmClient`, `RateLimiter` | `apps/api/src/domain/ports.js` |
-| **Encapsulation** | `AnonymousAuthor` can only serialise to `{anonymous, batch}`; `CompanyGuide` owns `isStale()`, `citesOnly()`, `toView()`; `FeedSort` hides cursor encoding | `domain/model/AuthorVisibility.js`, `domain/guide/CompanyGuide.js`, `domain/model/FeedSort.js` |
-| **Inheritance** | `Submission` → `QuickSubmission`, `DetailedSubmission`; `AppError` → 8 error subclasses; `FeedSort` → `NewestFirst`, `InterviewDateFirst`; `AuthorVisibility` → `AnonymousAuthor`, `NamedAuthor` | `domain/Submission.js`, `domain/errors.js`, `FeedSort.js`, `AuthorVisibility.js` |
-| **Polymorphism** | `cmd.run(writer)` works for every `ModerationCommand`; `AuthorVisibility.toPublic()`; `sort.after()/nextCursor()`; any `LlmClient` | `domain/ModerationCommand.js`, `ModerationService.js:17` |
+| **Abstraction** | Ports hide Supabase/Gemini/Postgres: `ExperienceReader`, `ExperienceWriter`, `LlmClient`, `RateLimiter` | `apps/api/src/domain/ports.ts` |
+| **Encapsulation** | `AnonymousAuthor` can only serialise to `{anonymous, batch}`; `CompanyGuide` owns `isStale()`, `citesOnly()`, `toView()`; `FeedSort` hides cursor encoding | `domain/model/AuthorVisibility.ts`, `domain/guide/CompanyGuide.ts`, `domain/model/FeedSort.ts` |
+| **Inheritance** | `Submission` → `QuickSubmission`, `DetailedSubmission`; `AppError` → 8 error subclasses; `FeedSort` → `NewestFirst`, `InterviewDateFirst`; `AuthorVisibility` → `AnonymousAuthor`, `NamedAuthor` | `domain/Submission.ts`, `domain/errors.ts`, `FeedSort.ts`, `AuthorVisibility.ts` |
+| **Polymorphism** | `cmd.run(writer)` works for every `ModerationCommand`; `AuthorVisibility.toPublic()`; `sort.after()/nextCursor()`; any `LlmClient` | `domain/ModerationCommand.ts`, `ModerationService.ts:17` |
 
-Composition over inheritance elsewhere: `buildServices` in `container.js` composes each service from small collaborators via constructors.
+Composition over inheritance elsewhere: `buildServices` in `container.ts` composes each service from small collaborators via constructors.
 
 **Honest limit to state:** the entities (Experience, Profile, Vote...) are database tables, not TypeScript classes, on purpose (ADR-25): the rules must hold even if the API is bypassed, so a TypeScript copy would be a second source of truth. TypeScript/JS classes exist only where behaviour needs to live in code.
 
@@ -113,15 +113,15 @@ Composition over inheritance elsewhere: `buildServices` in `container.js` compos
 
 **S: Single Responsibility**
 
-- Controllers only translate HTTP ↔ service (`controllers/ExperienceController.js`).
+- Controllers only translate HTTP ↔ service (`controllers/ExperienceController.ts`).
 - `ModerationService` runs commands; each `*Command` knows one decision.
-- `GuideService` orchestrates; prompt building, grounding, stats, fingerprint are separate functions in `domain/guide/CompanyGuide.js` (`buildPrompt`, `groundContent`, `computeStats`, `fingerprintOf`).
+- `GuideService` orchestrates; prompt building, grounding, stats, fingerprint are separate functions in `domain/guide/CompanyGuide.ts` (`buildPrompt`, `groundContent`, `computeStats`, `fingerprintOf`).
 - Web: `ExperienceCard.tsx` renders one card and knows nothing about fetching; `AdminRow.tsx` is the one layout for every admin list.
 
 **O: Open/Closed**
 
 - New moderation decision = new `Command` class + one factory case; `ModerationService.execute` untouched.
-- New feed order = new `FeedSort` subclass (`FeedSort.js`); this is how the "Sort by interview date" feature was added (migration `0010`).
+- New feed order = new `FeedSort` subclass (`FeedSort.ts`); this is how the "Sort by interview date" feature was added (migration `0010`).
 - Web: new outcome or status = one entry in `OUTCOME_TONE` / `STATUS_TONE` (`lib/format.ts`); new button look = one entry in `VARIANT` (`components/ui/Button.tsx`).
 
 **L: Liskov**
@@ -132,11 +132,11 @@ Composition over inheritance elsewhere: `buildServices` in `container.js` compos
 
 **I: Interface Segregation**
 
-- Ports are split by purpose in `ports.js`: `ExperienceReader` (read only), `ExperienceWriter`, `InteractionWriter`, `ModerationWriter` (one method), `RateLimiter` (one method: `consume`). The moderation log has **no** update/delete method at all.
+- Ports are split by purpose in `ports.ts`: `ExperienceReader` (read only), `ExperienceWriter`, `InteractionWriter`, `ModerationWriter` (one method), `RateLimiter` (one method: `consume`). The moderation log has **no** update/delete method at all.
 
 **D: Dependency Inversion**
 
-- Services import ports (`domain/`), adapters implement them, `container.js` wires them. Tests build the same services with in-memory fakes (`tests/fakes.js`), so 116 API tests run with no database.
+- Services import ports (`domain/`), adapters implement them, `container.ts` wires them. Tests build the same services with in-memory fakes (`tests/fakes.ts`), so 116 API tests run with no database.
 - Web: components depend on the `useMe()` hook and the `api()` function, not on URLs and `fetch` (`hooks/useMe.ts`, `lib/api.ts`).
 
 ---
@@ -145,17 +145,17 @@ Composition over inheritance elsewhere: `buildServices` in `container.js` compos
 
 | Pattern | Class / file | Problem it solves here |
 | --- | --- | --- |
-| **Ports and Adapters (Layered)** | `domain/ports.js`, `infrastructure/` | Rules independent of Supabase, Express, Gemini; testable with fakes |
-| **Repository** | SupabaseExperienceReader, `SupabaseReaders.js` (list reads), `SupabaseWriters.js`, `SupabaseAdminWriters.js` | All persistence knowledge in one place; DB errors translated once (`fromDbError`) |
-| **Adapter** | `GeminiClient.js`, `SupabaseTokenVerifier.js` | Vendor shapes and vendor error text stop at one class (a real bug: "API key not valid" used to reach clients) |
-| **Decorator** | `FallbackLlmClient.js` | Free-tier model returns 429/5xx: try next model without changing `GuideService`. 400 is not retried |
+| **Ports and Adapters (Layered)** | `domain/ports.ts`, `infrastructure/` | Rules independent of Supabase, Express, Gemini; testable with fakes |
+| **Repository** | SupabaseExperienceReader, `SupabaseReaders.ts` (list reads), `SupabaseWriters.ts`, `SupabaseAdminWriters.ts` | All persistence knowledge in one place; DB errors translated once (`fromDbError`) |
+| **Adapter** | `GeminiClient.ts`, `SupabaseTokenVerifier.ts` | Vendor shapes and vendor error text stop at one class (a real bug: "API key not valid" used to reach clients) |
+| **Decorator** | `FallbackLlmClient.ts` | Free-tier model returns 429/5xx: try next model without changing `GuideService`. 400 is not retried |
 | **Factory** | `SubmissionFactory`, `ModerationCommandFactory`, `FeedSorts.create`, `AuthorVisibilityFactory.fromDb`, `SupabaseRepositoryFactory.for(viewer)` | Callers never name a concrete class; one place makes the choice. `fromDb` **fails closed**: anything not `anonymous:false` is anonymous |
-| **Composition Root** | `container.js` (`createContainer`, `buildServices`) | Only file that knows concrete classes; no singletons or globals |
+| **Composition Root** | `container.ts` (`createContainer`, `buildServices`) | Only file that knows concrete classes; no singletons or globals |
 | **Template Method** | `Submission.toPayload()`; `FeedSort.nextCursor/after` | Fixed algorithm, one varying step (`normaliseRounds`, `keyOf`/`resume`) |
 | **Strategy** | `FeedSort` with `NewestFirst`, `InterviewDateFirst` | Interchangeable orderings; cursor carries the sort name so a cursor from another order is rejected |
-| **Command** | `ModerationCommand.js` (`Approve`, `Reject`, `Remove`, `Reinstate`) | Each decision is an object; `RejectCommand` fails fast without a note. Audit row written in the same DB transaction |
-| **State** | `ExperienceLifecycle.js` + trigger `guard_experience` | pending → published/rejected/unpublished etc. A test reads the SQL and fails if the TS table and the SQL table differ |
-| **Polymorphism instead of a flag** | `AuthorVisibility.js` | Privacy gate: `if (isAnonymous) hide()` would leak the one time it is forgotten |
+| **Command** | `ModerationCommand.ts` (`Approve`, `Reject`, `Remove`, `Reinstate`) | Each decision is an object; `RejectCommand` fails fast without a note. Audit row written in the same DB transaction |
+| **State** | `ExperienceLifecycle.ts` + trigger `guard_experience` | pending → published/rejected/unpublished etc. A test reads the SQL and fails if the TS table and the SQL table differ |
+| **Polymorphism instead of a flag** | `AuthorVisibility.ts` | Privacy gate: `if (isAnonymous) hide()` would leak the one time it is forgotten |
 
 **Patterns deliberately rejected (say these, it shows judgment):**
 
@@ -193,9 +193,9 @@ Tests: `supabase/tests/001..006_*.sql` (rules as anon, student, other student, a
 
 ## 9. Errors and concurrency (docs/design/09-errors-and-concurrency.md)
 
-**Error taxonomy** (`apps/api/src/domain/errors.js`): `AppError` base with `code` + `httpStatus`; `ValidationError` 400, `AuthenticationError` 401, `ForbiddenError` 403, `NotFoundError` 404 (never reveals a hidden post exists), `ConflictError` 409, `RateLimitedError` 429, `NotEnoughDataError` 409, `UpstreamError` 503. Same codes in `packages/shared/src/enums.ts` (`ERROR_CODES`), so the web app switches on codes.
+**Error taxonomy** (`apps/api/src/domain/errors.ts`): `AppError` base with `code` + `httpStatus`; `ValidationError` 400, `AuthenticationError` 401, `ForbiddenError` 403, `NotFoundError` 404 (never reveals a hidden post exists), `ConflictError` 409, `RateLimitedError` 429, `NotEnoughDataError` 409, `UpstreamError` 503. Same codes in `packages/shared/src/enums.ts` (`ERROR_CODES`), so the web app switches on codes.
 
-**Four validation layers:** browser (UX only, never trusted) → Zod in `validate.js` → domain methods → DB constraints.
+**Four validation layers:** browser (UX only, never trusted) → Zod in `validate.ts` → domain methods → DB constraints.
 
 **Concurrency table (cite one per defence, each has a test):**
 
@@ -251,9 +251,9 @@ A concurrency check against a running stack: `apps/api/scripts/concurrency-check
 
 ## 11. Testing and evidence
 
-- **API:** 116 tests, Vitest + supertest against `createApp()` (imported without listening), in-memory fakes, no database. `npm test` at the repo root builds shared then runs them.
+- **API:** 130 tests, Vitest + supertest against `createApp()` (imported without listening), in-memory fakes, no database. `npm test` at the repo root builds shared then runs them.
 - **Database:** repeatable SQL tests in `supabase/tests/` (RLS per role, anonymity, one vote per user, append-only log, domain restriction, query plans).
-- **Model parity:** `model.test.ts`-style test reads the SQL transition table and compares it to `TRANSITIONS` in `ExperienceLifecycle.js`.
+- **Model parity:** `model.test.ts`-style test reads the SQL transition table and compares it to `TRANSITIONS` in `ExperienceLifecycle.ts`.
 - **Live checks:** concurrency script, real Supabase smoke test, Gemini verified live with `gemini-2.5-flash`.
 - **Rule:** each concurrency or privacy claim has a test that fails when its defence is removed. Be ready to demo: fire the same vote twice, count stays 1.
 - **Design compliance audit:** `docs/design/10-compliance.md` (layering greps, service-role usage, class-diagram coverage, known gaps). Re-run before the evaluation.
@@ -263,10 +263,10 @@ A concurrency check against a running stack: `apps/api/scripts/concurrency-check
 ## 12. Honest limits (examiners respect these)
 
 - Not built, on purpose or for time: `Idempotency-Key` on submit (rate limit of 5/day is the mitigation); API latency measurement (NFR-05: only database query plans are checked); screen-reader pass (NFR-10); a mutation test proving each concurrency defence fails when removed.
-- Ports are not compiler-enforced in JavaScript, so `apps/api/tests/ports.test.js` checks every adapter against `domain/ports.js`.
+- Ports are TypeScript interfaces, so `tsc` refuses an adapter that misses a method; `apps/api/tests/ports.test.ts` additionally keeps the small ports small (Interface Segregation).
 
-- The API is plain JavaScript; ports are JSDoc typedefs, not compiler-checked interfaces (ADR-27).
-- Entities are tables, not classes (ADR-25); some design docs still say `.ts`.
+- The API went JavaScript (ADR-27) and back to TypeScript (ADR-30): the decision record keeps both, with reasons.
+- Entities are tables, not classes (ADR-25).
 - Scale target is hundreds of users, thousands of rows; the ladder to more is documented in ADR-20 (cache, read replicas, queue for AI).
 - Free-tier hosting: API may cold-start; Gemini free tier is rate limited (hence the decorator).
 - `ADR-26`: two non-college test addresses are allowed beside the domain rule; **remove before real launch**.
@@ -287,7 +287,7 @@ A concurrency check against a running stack: `apps/api/scripts/concurrency-check
  9. **Why no Singleton?** The user-scoped Supabase client carries a token; sharing it would cross users.
 10. **How is rate limiting fair on campus Wi-Fi?** Keyed on user id for signed-in actions; only visitors fall back to hashed IP with a higher limit (ADR-11).
 11. **Two admins click approve and reject at once?** Compare-and-set UPDATE on `status='pending'`; the loser gets 409 `CONFLICT`.
-12. **Why does the client never send** `role`**?** The API derives identity from the verified token and the role from the database on every request (`middleware/authenticate.js`).
+12. **Why does the client never send** `role`**?** The API derives identity from the verified token and the role from the database on every request (`middleware/authenticate.ts`).
 13. **What is the difference between validation layers?** Browser = UX, Zod = shape, domain = business rule, DB = last line of defence.
 14. **Where is the Open/Closed principle visible on the frontend?** `VARIANT`, `TONE`, `OUTCOME_TONE` lookup tables: a new look is a new entry, not an edit.
 
@@ -300,4 +300,4 @@ A concurrency check against a running stack: `apps/api/scripts/concurrency-check
 3. `docs/design/06-sequence-and-activity.md`: sequence/state diagrams (submit, moderate, guide).
 4. `docs/design/07-api-design.md` and `08-database-schema.md`: contracts and schema.
 5. `docs/design/10-compliance.md`: audit, including known gaps.
-6. Code entry points: `apps/api/src/container.js`, `routes/index.js`, `domain/`, `apps/web/src/lib/`, `components/ui/`.
+6. Code entry points: `apps/api/src/container.ts`, `routes/index.ts`, `domain/`, `apps/web/src/lib/`, `components/ui/`.
