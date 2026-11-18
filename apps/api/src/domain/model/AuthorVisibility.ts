@@ -1,9 +1,21 @@
+/**
+ * domain/model/AuthorVisibility.ts — WHAT A READER MAY SEE ABOUT THE AUTHOR
+ *
+ * What it does:
+ *   - AnonymousAuthor: shows ONLY "anonymous + batch" (e.g. "Anonymous · 2027"). Never the name, never the branch.
+ *   - NamedAuthor: shows name, batch and branch (the student chose to be named, or an admin posted for them with consent).
+ *   - AuthorVisibilityFactory.fromDb(): picks the right one from the database row.
+ *
+ * System design:
+ * - Polymorphism instead of "if (isAnonymous) ... else ..." scattered around the code: each class knows how to
+ *   present itself (toPublic()).
+ * - Privacy by design / defence in depth (ADR-06): the database already hides identity for anonymous posts;
+ *   this is a second gate in the API. Even if extra fields arrived by mistake, an anonymous author can only
+ *   ever output { anonymous, batch }.
+ * - Fail closed: if the data is unclear, the author is treated as ANONYMOUS (the safe choice), never as named.
+ */
 import type { Branch, PublicAuthor } from "@preplens/shared";
 
-/**
- * Polymorphism instead of an if/else on a flag. The database already decides what to return (ADR-06); this is the API's own
- * output gate: whatever shape arrives, an anonymous author can only ever serialise to `{ anonymous, batch }`.
- */
 export abstract class AuthorVisibility {
   abstract toPublic(): PublicAuthor;
 }
@@ -13,14 +25,13 @@ export class AnonymousAuthor extends AuthorVisibility {
   toPublic(): PublicAuthor { return { anonymous: true, batch: this.batch }; }
 }
 
-/** A named author: the student who chose to be identified, or a student an admin posted for with their consent. */
 export class NamedAuthor extends AuthorVisibility {
   constructor(private readonly name: string | null, private readonly batch: number | null, private readonly branch: Branch | null) { super(); }
   toPublic(): PublicAuthor { return { anonymous: false, name: this.name, batch: this.batch, branch: this.branch }; }
 }
 
 export const AuthorVisibilityFactory = {
-  /** Fails closed: anything not explicitly `anonymous: false` is treated as anonymous. */
+  /** Only an explicit `anonymous: false` gives a named author. Anything else (missing, null, odd) -> anonymous. */
   fromDb(raw: unknown): AuthorVisibility {
     const o = (raw ?? {}) as Record<string, unknown>;
     if (o.anonymous !== false) return new AnonymousAuthor((o.batch as number) ?? null);

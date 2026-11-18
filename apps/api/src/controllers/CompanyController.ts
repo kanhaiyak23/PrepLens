@@ -1,3 +1,10 @@
+/**
+ * controllers/CompanyController.ts — THE "WAITER" FOR THE COMPANY LIST
+ *
+ * What it does: GET /companies?prefix=am -> list of companies (used for the search box and filters).
+ *
+ * System design: thin controller (layered architecture) — read input, call the service, return JSON. No rules here.
+ */
 import type { Request, Response } from "express";
 
 export class CompanyController {

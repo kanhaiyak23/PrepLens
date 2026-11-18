@@ -1,25 +1,42 @@
+/**
+ * domain/model/FeedSort.ts — HOW THE FEED IS SORTED, AND HOW TO GET THE NEXT PAGE
+ *
+ * What it does: two ways to sort the feed:
+ *   - NewestFirst: newest posts first (by date posted).
+ *   - InterviewDateFirst: most recent interviews first (by interview year and month).
+ * Each one knows how to build the "continue from here" cursor for the next page, and how to read it back.
+ *
+ * System design:
+ * - Strategy pattern: the sort order is a swappable object. The service calls sort.nextCursor() / sort.after()
+ *   without any "if sort === ..." code.
+ * - Template Method: the shared cursor logic (encode, decode, check) is written once in FeedSort; each child only
+ *   says what its sort key is (keyOf) and how to rebuild it (resume).
+ * - Open/Closed: a new sort order = one new class (plus one SQL branch). The service and routes don't change.
+ * - Keyset pagination: the cursor holds the last item's sort key + id, so paging stays fast and stable.
+ * - Safety: the cursor includes the sort name, so a cursor from one sort used with another sort is rejected with
+ *   a clear 400 error, instead of silently starting over.
+ */
 import type { ExperienceCard, FeedSortName } from "@preplens/shared";
 import { ValidationError } from "../errors.js";
 
-/** Where to resume after the last row of the previous page. One variant per sort order. */
+/** "Resume after this item" — one shape per sort order. */
 export type FeedAfter =
   | { kind: "newest"; createdAt: string; id: string }
   | { kind: "interview"; year: number; month: number; id: string };
 
-/**
- * Strategy (and Template Method for the shared cursor handling): each ordering knows its own sort key and how to resume from it.
- * Open/Closed: a new ordering is a new subclass and one SQL branch; the service and routes do not change.
- * The cursor carries the sort name, so a cursor from one ordering is rejected under another (a 400, never a silent restart).
- */
 export abstract class FeedSort {
   abstract readonly name: FeedSortName;
+  /** The sort key of a post, as text (child decides). */
   protected abstract keyOf(card: ExperienceCard): string;
+  /** Rebuild the "resume after" value from the key text (child decides). */
   protected abstract resume(key: string, id: string): FeedAfter;
 
+  /** Build the cursor string for the page after `last`: {sort name, sort key, id} encoded as base64. */
   nextCursor(last: ExperienceCard): string {
     return Buffer.from(JSON.stringify({ s: this.name, k: this.keyOf(last), i: last.id }), "utf8").toString("base64url");
   }
 
+  /** Read a cursor sent back by the browser. Wrong sort, tampered or malformed -> 400. */
   after(cursor: string): FeedAfter {
     try {
       const o = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as { s?: unknown; k?: unknown; i?: unknown };
@@ -31,6 +48,7 @@ export abstract class FeedSort {
   }
 }
 
+/** Sort by when it was posted. Key = the post's creation date. */
 export class NewestFirst extends FeedSort {
   readonly name = "newest" as const;
   protected keyOf(card: ExperienceCard) { return card.createdAt; }
@@ -40,7 +58,7 @@ export class NewestFirst extends FeedSort {
   }
 }
 
-/** Newest interview first. A post with no month sorts after the dated posts of its year (month treated as 0). */
+/** Sort by interview date. Key = "year.month". A post with no month counts as month 0 (after the dated posts of that year). */
 export class InterviewDateFirst extends FeedSort {
   readonly name = "interview" as const;
   protected keyOf(card: ExperienceCard) { return `${card.interviewYear}.${card.interviewMonth ?? 0}`; }
@@ -51,6 +69,7 @@ export class InterviewDateFirst extends FeedSort {
   }
 }
 
+/** Factory: sort name -> strategy object. Anything other than "interview" means newest first. */
 export const FeedSorts = {
   create(name: FeedSortName): FeedSort {
     return name === "interview" ? new InterviewDateFirst() : new NewestFirst();
