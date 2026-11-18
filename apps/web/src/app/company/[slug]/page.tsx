@@ -27,7 +27,7 @@ async function Body({ params }: { params: Promise<{ slug: string }> }) {
   let feed: Page<Card> | null = null;
   let problem: string | null = null;
   try {
-    feed = await serverFetch<Page<Card>>(`/api/v1/experiences?company=${encodeURIComponent(slug)}&limit=12`);
+    feed = await serverFetch<Page<Card>>(`/api/v1/experiences?company=${encodeURIComponent(slug)}&limit=12`, { revalidate: 30 });
   } catch (e) {
     problem = e instanceof ServerApiError ? e.message : "Something went wrong.";
   }

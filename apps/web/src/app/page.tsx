@@ -101,8 +101,8 @@ function BrandStrip() {
 async function loadLive() {
   try {
     const [feed, companies] = await Promise.all([
-      serverFetch<Page<Card>>("/api/v1/experiences?limit=3"),
-      serverFetch<{ data: CompanySummary[] }>("/api/v1/companies?limit=50"),
+      serverFetch<Page<Card>>("/api/v1/experiences?limit=3", { revalidate: 30 }),
+      serverFetch<{ data: CompanySummary[] }>("/api/v1/companies?limit=50", { revalidate: 30 }),
     ]);
     return { feed: feed.data, companies: companies.data };
   } catch {

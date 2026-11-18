@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EXPERIENCE_STATUSES, type AdminCard, type ExperienceStatus, type MeResponse, type ModerationAction, type Page } from "@preplens/shared";
 import { useAuth } from "@/hooks/useAuth";
+import { loadMe } from "@/hooks/useMe";
 import { api, ApiError } from "@/lib/api";
 import { OUTCOME_LABEL, OUTCOME_TONE, STATUS_LABEL, authorLabel, shortDate } from "@/lib/format";
 import { Badge } from "@/components/ui/Badge";
@@ -36,7 +37,7 @@ export function AdminQueue() {
   useEffect(() => {
     if (loading) return;
     if (!token) { router.replace("/signin?next=/admin"); return; }
-    api<MeResponse>("/api/v1/me", { token }).then(setMe).catch((e: ApiError) => setError(e.message));
+    loadMe(token).then(setMe).catch((e: ApiError) => setError(e.message));
   }, [loading, token, router]);
 
   const [reload, setReload] = useState(0);
