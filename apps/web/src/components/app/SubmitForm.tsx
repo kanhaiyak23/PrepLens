@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DRIVE_TYPES, OUTCOMES, type CompanySummary, type MeResponse, type SubmissionDto } from "@preplens/shared";
 import { useAuth } from "@/hooks/useAuth";
+import { loadMe } from "@/hooks/useMe";
 import { api, ApiError } from "@/lib/api";
 import { DRIVE_LABEL, OUTCOME_LABEL } from "@/lib/format";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -40,7 +41,7 @@ export function SubmitForm() {
   useEffect(() => {
     if (loading) return;
     if (!token) { router.replace("/signin?next=/submit"); return; }
-    api<MeResponse>("/api/v1/me", { token }).then(setMe).catch((e: ApiError) => setError(e.message));
+    loadMe(token).then(setMe).catch((e: ApiError) => setError(e.message));
   }, [loading, token, router]);
 
   // company autocomplete: prefix search against the public API

@@ -39,8 +39,8 @@ async function Results({ searchParams }: { searchParams: Search }) {
   let problem: string | null = null;
   try {
     [feed, { data: companies }] = await Promise.all([
-      serverFetch<Page<Card>>(`/api/v1/experiences?${toQuery({ ...values, cursor, limit: "12" })}`),
-      serverFetch<{ data: CompanySummary[] }>("/api/v1/companies?limit=50"),
+      serverFetch<Page<Card>>(`/api/v1/experiences?${toQuery({ ...values, cursor, limit: "12" })}`, { revalidate: 30 }),
+      serverFetch<{ data: CompanySummary[] }>("/api/v1/companies?limit=50", { revalidate: 30 }),
     ]);
   } catch (e) {
     problem = e instanceof ServerApiError ? e.message : "Something went wrong.";

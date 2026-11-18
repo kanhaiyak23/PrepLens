@@ -1,3 +1,14 @@
+/**
+ * services/MyContentService.ts — MY POSTS AND MY SAVED POSTS
+ *
+ * What it does:
+ *   - listMine(): every post I wrote, in every status, so I can see what is pending, live or rejected (and why).
+ *   - listBookmarks(): the posts I saved, newest saved first, one page at a time.
+ *
+ * System design:
+ * - Privacy: bookmarks are private. The database security rules (RLS) only let a user read their own.
+ * - Keyset pagination with the "limit + 1" trick; the cursor uses the time I saved the post plus its id.
+ */
 import type { BookmarkedCard, MyExperience, Page } from "@preplens/shared";
 import type { MyContentReader } from "../domain/ports.js";
 import { decodeCursor, encodeCursor } from "../lib/cursor.js";

@@ -1,3 +1,18 @@
+/**
+ * container.ts — THE COMPOSITION ROOT (where every object is created and connected)
+ *
+ * What it does: creates the real objects the API uses (Supabase adapters, Gemini AI client, rate limiter,
+ * token checker) and gives each service the helpers it needs.
+ *
+ * System design:
+ * - Dependency Injection: services never create their own database or AI objects. They RECEIVE them here
+ *   through their constructor. This is the only file that names concrete classes like "SupabaseXxx" or "GeminiClient".
+ * - Dependency Inversion (the D in SOLID): services depend on interfaces (domain/ports.ts); this file decides
+ *   which real class fulfils each interface. Tests build the same container with in-memory fakes,
+ *   so all 130 tests run without a real database.
+ * - Per-request services: servicesFor(viewer) builds a fresh set of services for EACH request, bound to the
+ *   person calling. That way every database call runs as that user, and database security rules (RLS) apply.
+ */
 import type { Config } from "./config/env.js";
 import type { RateLimiter, RepositoryFactory, TokenVerifier } from "./domain/ports.js";
 import type { Services } from "./context.js";
@@ -29,24 +44,25 @@ import { SupabaseRepositoryFactory } from "./infrastructure/SupabaseRepositoryFa
 import { SupabaseTokenVerifier } from "./infrastructure/supabase/SupabaseTokenVerifier.js";
 import { PostgresRateLimiter } from "./infrastructure/PostgresRateLimiter.js";
 
-/**
- * Composition root (Dependency Inversion): the only file that knows which concrete classes implement
- * the ports. Tests build the same Container with in-memory fakes, so no test needs a database.
- */
+/** Everything the app needs, in one box. The routes and middleware read from this. */
 export type Container = {
   config: Pick<Config, "NODE_ENV" | "FRONTEND_URL">;
   logger: Logger;
-  verifier: TokenVerifier;
-  limiter: RateLimiter;
-  repositories: RepositoryFactory;
-  servicesFor: (viewer: Viewer) => Services;
+  verifier: TokenVerifier;          // checks login tokens
+  limiter: RateLimiter;             // counts requests per user
+  repositories: RepositoryFactory;  // builds database readers/writers for one user
+  servicesFor: (viewer: Viewer) => Services; // builds all services for the person calling
 };
 
-/** Collaborators that are shared by every request (not tied to one user's token). */
+/** Helpers shared by every request (not tied to one user's login), so we create them once. */
 export type Shared = { guides: GuideRepository; llm: LlmClient | null; logger: Logger; deleter: AccountDeleter };
 
+/**
+ * Builds every service for ONE caller. Each service gets only the small interfaces it needs
+ * (Interface Segregation) and, where it makes decisions about permissions, the viewer (who is calling).
+ */
 export function buildServices(repositories: RepositoryFactory, viewer: Viewer, shared: Shared): Services {
-  const r = repositories.for(viewer);
+  const r = repositories.for(viewer); // database helpers that run AS this user
   return {
     experiences: new ExperienceService(r.experiences, viewer),
     me: new MeService(r.profiles, r.profileWriter),
@@ -66,11 +82,13 @@ export function buildServices(repositories: RepositoryFactory, viewer: Viewer, s
   };
 }
 
+/** Builds the real, production container: real Supabase, real Gemini, real rate limiter. */
 export function createContainer(config: Config): Container {
   const repositories = new SupabaseRepositoryFactory(config);
   const logger = createLogger(config.LOG_LEVEL);
-  const service = createServiceClient(config);
-  // The decorator wraps one adapter per configured model. No key means no LLM: the guide endpoint answers 503 and nothing else is affected.
+  const service = createServiceClient(config); // the powerful "system" connection, used only for a few system tasks
+  // AI client with a backup plan (Decorator pattern): one Gemini client per model, wrapped so that if the first
+  // model fails, the next one is tried. No API key means no AI: only the guide endpoint answers 503; nothing else breaks.
   const llm = config.GEMINI_API_KEY
     ? new FallbackLlmClient(config.GEMINI_MODELS.split(",").map((m) => m.trim()).filter(Boolean).map((m) => new GeminiClient(config.GEMINI_API_KEY!, m)))
     : null;
